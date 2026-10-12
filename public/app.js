@@ -37,8 +37,8 @@
       pieceShadow: 'rgba(0,0,0,.5)',
       piece: {
         // face1=顶面亮部 face2=顶面暗部 side=圆柱侧面 wall=侧面阴影
-        r: { face1: '#ef6a58', face2: '#9d1b12', side: '#7d130c', wall: 'rgba(0,0,0,.45)', rim: 'rgba(0,0,0,.30)', glyph: '#fff', glyphShadow: 'rgba(70,6,2,.55)' },
-        b: { face1: '#5c626c', face2: '#191c21', side: '#101317', wall: 'rgba(0,0,0,.5)', rim: 'rgba(0,0,0,.35)', glyph: '#fff', glyphShadow: 'rgba(0,0,0,.6)' }
+        r: { face1: '#ef6a58', face2: '#9d1b12', side: '#7d130c', wall: 'rgba(0,0,0,.45)', rim: 'rgba(0,0,0,.30)', inner: 'bevel', innerAt: 0.8, innerW: 0.055, glyph: '#fff', glyphShadow: 'rgba(70,6,2,.55)' },
+        b: { face1: '#5c626c', face2: '#191c21', side: '#101317', wall: 'rgba(0,0,0,.5)', rim: 'rgba(0,0,0,.35)', inner: 'bevel', innerAt: 0.8, innerW: 0.055, glyph: '#fff', glyphShadow: 'rgba(0,0,0,.6)' }
       }
     },
     wood: {
@@ -51,8 +51,8 @@
       label: 'rgba(88,58,26,.6)',
       pieceShadow: 'rgba(70,42,12,.26)',
       piece: {
-        r: { face1: '#fffdf7', face2: '#efdcb6', side: '#c2a066', wall: 'rgba(120,80,30,.35)', rim: '#b3251f', glyph: '#ab241d', glyphShadow: 'rgba(255,255,255,.75)' },
-        b: { face1: '#fffdf7', face2: '#efdcb6', side: '#c2a066', wall: 'rgba(120,80,30,.35)', rim: '#2c2f36', glyph: '#23262d', glyphShadow: 'rgba(255,255,255,.75)' }
+        r: { face1: '#fffdf7', face2: '#efdcb6', side: '#c2a066', wall: 'rgba(120,80,30,.35)', rim: '#b3251f', inner: '#b3251f', innerAt: 0.79, innerW: 0.055, glyph: '#ab241d', glyphShadow: 'rgba(255,255,255,.75)' },
+        b: { face1: '#fffdf7', face2: '#efdcb6', side: '#c2a066', wall: 'rgba(120,80,30,.35)', rim: '#2c2f36', inner: '#2c2f36', innerAt: 0.79, innerW: 0.055, glyph: '#23262d', glyphShadow: 'rgba(255,255,255,.75)' }
       }
     }
   };
@@ -416,6 +416,26 @@
       c.lineWidth = Math.max(1, r * 0.045);
       c.strokeStyle = pal.rim;
       c.stroke();
+    }
+
+    // 6b) 内沿那一圈台阶：左上受光、右下背光，细看就能看出圆片分了外沿和内面
+    if (pal.inner) {
+      c.beginPath(); c.arc(cx, faceY, r * (pal.innerAt || 0.8), 0, Math.PI * 2);
+      c.lineWidth = Math.max(1, r * (pal.innerW || 0.05));
+      if (pal.inner === 'bevel') {
+        var ig = c.createLinearGradient(cx - r * 0.6, faceY - r * 0.6, cx + r * 0.6, faceY + r * 0.6);
+        ig.addColorStop(0, 'rgba(255,255,255,.26)');
+        ig.addColorStop(0.45, 'rgba(255,255,255,.05)');
+        ig.addColorStop(1, 'rgba(0,0,0,.30)');
+        c.strokeStyle = ig;
+      } else {
+        c.strokeStyle = pal.inner;
+      }
+      c.stroke();
+      // 内面再稍微提亮一点点，和外沿分开
+      c.beginPath(); c.arc(cx, faceY, r * (pal.innerAt || 0.8) - Math.max(1, r * (pal.innerW || 0.05)) / 2, 0, Math.PI * 2);
+      c.fillStyle = pal.inner === 'bevel' ? 'rgba(255,255,255,.05)' : 'rgba(255,255,255,.18)';
+      c.fill();
     }
 
     // 7) 字：先压一层暗影再写白字，做出刻上去的感觉
