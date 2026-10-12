@@ -252,7 +252,8 @@
       ? Math.max(200, Math.min(window.innerHeight * 0.66, 620) - siblings - 10 * count)
       : Math.max(200, areaH - siblings - 10 * count);
 
-    var cell = Math.min(availW / 9.56, availH / 10.56, 76);
+    // 上限放宽一点：宽屏上棋盘能跟着变大，不至于两边空一大片
+    var cell = Math.min(availW / 9.56, availH / 10.56, 120);
     cell = Math.max(20, Math.floor(cell));
     geo.cell = cell;
     geo.margin = Math.round(cell * 0.78);

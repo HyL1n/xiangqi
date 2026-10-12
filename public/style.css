@@ -90,7 +90,7 @@ main {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 348px;
+  grid-template-columns: minmax(0, 1fr) 420px;
   grid-template-rows: minmax(0, 1fr);
   gap: 16px;
   padding: 16px;
@@ -425,6 +425,10 @@ select.btn option { background: #20252f; color: var(--text); }
 .hidden { display: none !important; }
 
 /* ---------------- 窄屏 ---------------- */
+
+@media (max-width: 1500px) and (min-width: 901px) {
+  main { grid-template-columns: minmax(0, 1fr) 360px; }
+}
 
 @media (max-width: 900px) {
   body { overflow: auto; }
