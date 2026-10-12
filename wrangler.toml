@@ -8,6 +8,8 @@
 name = "xiangqi"
 main = "cloudflare/worker.js"
 compatibility_date = "2025-03-01"
+# 明确启用 xxx.workers.dev 免费域名（默认也是 true，写出来避免 wrangler 反复提示）
+workers_dev = true
 
 # 静态资源：public/ 里的 index.html / app.js / rules.js / style.css / config.js
 [assets]
