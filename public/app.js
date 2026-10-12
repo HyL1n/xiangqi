@@ -940,11 +940,18 @@
   function showLobby() { $('lobby').hidden = false; }
   function hideLobby() { $('lobby').hidden = true; }
 
+  // 已发布到公网的站点（https）别说"用局域网地址"，那是本地服务才有的说法
+  function lobbyHintText() {
+    return location.protocol === 'https:'
+      ? '提示：创建房间后把房间号或邀请链接发给朋友，他打开就能入座；同一台设备上也可以轮流下。'
+      : '提示：同一 Wi-Fi 下，朋友用你电脑的局域网地址打开即可；也可以用内网穿透让别人从外网加入。';
+  }
+
   // 邀请链接进来时大厅会被改写，退出房间后要还原
   function resetLobby() {
     document.querySelector('.lobbycard h2').textContent = '象棋';
     $('btnCreate').textContent = '创建房间，我执红先行';
-    $('lobbyHint').textContent = '提示：同一 Wi-Fi 下，朋友用你电脑的局域网地址打开即可；也可以用内网穿透让别人从外网加入。';
+    $('lobbyHint').textContent = lobbyHintText();
   }
 
   function currentTime() {
@@ -1217,7 +1224,7 @@
       }
       else setTimeout(function () { $('nameInput').focus(); }, 100);
     } else {
-      $('lobbyHint').textContent = '提示：同一 Wi-Fi 下，朋友用你电脑的局域网地址打开即可；也可以用内网穿透让别人从外网加入。';
+      $('lobbyHint').textContent = lobbyHintText();
     }
     /*
      * 只在"确实是静态托管"时才提示。注意别只看 https ——
