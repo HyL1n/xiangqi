@@ -25,6 +25,21 @@ const SKIP = new Set(['node_modules', '.git', '.wrangler', 'work']);
 
 function say(t) { console.log(t); toLog(t); }
 
+/*
+ * wrangler / npm 用 Node 的 fetch，不读系统的 Clash 代理设置，
+ * 必须显式给子进程塞代理环境变量；localhost 走直连（登录回调是本机 8976 端口）。
+ */
+function childEnv() {
+  const env = Object.assign({}, process.env);
+  const proxy = process.env.XQ_PROXY || process.env.HTTPS_PROXY || process.env.https_proxy || PROXY;
+  env.HTTPS_PROXY = proxy; env.https_proxy = proxy;
+  env.HTTP_PROXY = proxy; env.http_proxy = proxy;
+  env.ALL_PROXY = proxy; env.all_proxy = proxy;
+  env.NO_PROXY = 'localhost,127.0.0.1,::1';
+  env.no_proxy = env.NO_PROXY;
+  return env;
+}
+
 // 完整输出同时写进日志文件，方便把失败原因贴给我（或我直接去读）
 let LOG_PATH = '';
 function toLog(line) {
@@ -40,7 +55,7 @@ function run(cmd, args, opts, echo) {
   toLog('  $ ' + cmd + ' ' + args.join(' '));
   if (DRY) return { status: 0, stdout: '', stderr: '' };
   const spec = wrap(cmd, args);
-  const r = spawnSync(spec.cmd, spec.args, Object.assign({ cwd: WORK, encoding: 'utf8' }, opts));
+  const r = spawnSync(spec.cmd, spec.args, Object.assign({ cwd: WORK, encoding: 'utf8', env: childEnv() }, opts));
   if (echo) {
     const t = ansi(((r.stdout || '') + (r.stderr || '')).trim());
     if (t) {
@@ -102,7 +117,7 @@ function runLive(cmd, args) {
   say('  $ ' + cmd + ' ' + args.join(' '));
   if (DRY) return 0;
   const spec = wrap(cmd, args);
-  const r = spawnSync(spec.cmd, spec.args, { cwd: WORK, stdio: 'inherit' });
+  const r = spawnSync(spec.cmd, spec.args, { cwd: WORK, stdio: 'inherit', env: childEnv() });
   return r.status;
 }
 
@@ -151,7 +166,12 @@ function npx() { return process.platform === 'win32' ? 'npx.cmd' : 'npx'; }
 
   step('检查代理');
   const proxyUp = await portOpen(7897);
-  if (proxyUp) ok('本地代理 7897 可用（Clash）'); else bad('本地 7897 没在监听，npm/Cloudflare 可能连不上');
+  if (proxyUp) {
+    ok('本地代理 7897 可用（Clash）');
+    ok('已让 wrangler / npm 走这个代理: ' + (process.env.XQ_PROXY || PROXY));
+  } else {
+    bad('本地 7897 没在监听；如果 Clash 用的是别的端口，请设置环境变量 XQ_PROXY 再运行');
+  }
 
   step('登录 Cloudflare（第一次会打开浏览器授权）');
   if (DRY ? false : whoamiLoggedIn()) {
