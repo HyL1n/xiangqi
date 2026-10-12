@@ -719,6 +719,14 @@
   /* ---------------- 视图 ---------------- */
 
   function setView(v) {
+    /*
+     * 人机对战里棋盘朝向跟着"你"走：重新开始会交换先手，你换成执黑时棋盘要翻过来，
+     * 不然自己的棋子跑到上面去了（用户手动点过「翻转棋盘」就不自动干预）。
+     */
+    if ((S.mode === 'ai' || S.mode === 'local') && v && autoFlipFor(v.you)) {
+      renderBg();
+      placeGrid();
+    }
     var old = S.view;
     if (old && v && old.board !== v.board && v.moveCount === old.moveCount + 1 && v.lastMove) {
       // 刚好前进一着：滑子动画 + 落子声（吃子时声音更重）
@@ -799,6 +807,7 @@
     S.aiThinking = false;
     S.local = new X.Game();
     S.flipped = false;
+    S.userFlipped = false;
     $('chatCard').classList.add('hidden');
     history.replaceState(null, '', location.pathname);
     hideLobby();
@@ -1446,6 +1455,7 @@
     S.name = ($('nameInput').value || '').trim() || '红方';
     saveName();
     S.token = null; S.queue = [];
+    S.userFlipped = false;          // 新的一局，朝向重新跟着座位走
     S.code = newCode(6);          // 自己先定房间号，才能连到对应的房间
     S.pendingCreate = true;
     startOnline();
@@ -1459,6 +1469,7 @@
     saveName();
     S.code = code;
     S.token = getToken(code);
+    S.userFlipped = false;          // 新进一局，朝向重新跟着座位走
     S.pendingCreate = false;
     startOnline();
   }
@@ -1473,6 +1484,7 @@
     S.you = null;
     S.local = new X.Game();
     S.flipped = false;
+    S.userFlipped = false;
     $('chatCard').classList.add('hidden');
     history.replaceState(null, '', location.pathname);
     hideLobby();
@@ -1593,6 +1605,7 @@
     else if (act === 'reset-yes') {
       S.confirm = null;
       if (S.mode === 'ai') S.aiSide = X.other(S.aiSide);   // 人机对战重新开始会交换先手
+      S.userFlipped = false;                               // 换先了，朝向重新跟着"你"走
       S.local = new X.Game();
       S.aiThinking = false;
       setView(localView());
@@ -1649,6 +1662,7 @@
     else if (act === 'rematch') { send({ t: 'rematch' }); }
     else if (act === 'localfresh') {
       if (S.mode === 'ai') S.aiSide = X.other(S.aiSide);
+      S.userFlipped = false;                 // 换先了，朝向重新跟着"你"走
       S.local = new X.Game();
       S.aiThinking = false;
       setView(localView());
