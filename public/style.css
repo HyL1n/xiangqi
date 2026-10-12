@@ -24,10 +24,12 @@ html, body {
 html { color-scheme: dark; }
 
 body {
-  background:
-    radial-gradient(1000px 600px at 15% -10%, #232a37 0%, transparent 60%),
-    radial-gradient(900px 500px at 110% 10%, #2a2230 0%, transparent 55%),
-    var(--bg);
+  /* 纯深色 + 一点极弱的光，别再用彩色光晕（很"AI 味"） */
+  background-color: #101218;
+  background-image:
+    radial-gradient(1400px 700px at 50% -15%, rgba(233, 237, 244, .045), transparent 72%),
+    linear-gradient(180deg, #14171e 0%, #0e1015 100%);
+  background-attachment: fixed;
   color: var(--text);
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -114,6 +116,60 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;          /* 给棋盘右下角那组小工具做定位基准 */
+}
+
+/*
+ * 翻转 / 主题 / 字体 / 声音：不再是顶栏里的一排按钮，
+ * 收成棋盘右下角一个小工具条（需要时才看得到，顶栏也能清爽点）。
+ */
+.board-tools {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: rgba(20, 23, 30, .72);
+  backdrop-filter: blur(6px);
+  opacity: .45;
+  transition: opacity .15s;
+}
+.board-tools:hover, .board-tools:focus-within { opacity: 1; }
+.tool {
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  padding: 0;
+  border: 0; border-radius: 8px;
+  background: transparent; color: var(--muted);
+  cursor: pointer;
+}
+.tool:hover { background: var(--card-2); color: var(--text); }
+.tool svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.tool svg .solid { fill: currentColor; stroke: none; }
+.tool svg .mute { display: none; }
+#btnSound[aria-pressed="false"] svg .w1,
+#btnSound[aria-pressed="false"] svg .w2 { display: none; }
+#btnSound[aria-pressed="false"] svg .mute { display: block; }
+.tool-sel {
+  height: 28px; padding: 0 4px;
+  border: 0; border-radius: 8px;
+  background: transparent; color: var(--muted);
+  font-size: 12px; cursor: pointer;
+}
+.tool-sel:hover { background: var(--card-2); color: var(--text); }
+/* 窄屏时这组工具挪进底部状态栏，就别再做成浮层了 */
+.bar .board-tools {
+  position: static;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  opacity: 1;
 }
 
 .board-box { position: relative; line-height: 0; }
@@ -470,6 +526,7 @@ select.btn option {
     flex: 0 0 auto;
   }
   .board-wrap { flex: 0 0 auto; height: auto; }
+  .bar { flex-wrap: wrap; }
   .panel { min-height: 0; }
   .hist { max-height: 148px; }
   .chatlog { max-height: 180px; }

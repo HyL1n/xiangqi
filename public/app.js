@@ -253,6 +253,16 @@
     var availW = wrap.clientWidth || (window.innerWidth - 40);
 
     /*
+     * 窄屏时棋盘几乎占满整行，那组小工具浮在右下角会盖住棋子，
+     * 所以窄屏干脆把它放进底部状态栏里（宽屏才浮在棋盘右下角）。
+     */
+    var tools = $('boardTools');
+    if (tools) {
+      var host = narrow ? document.querySelector('.bar') : wrap;
+      if (host && tools.parentElement !== host) host.appendChild(tools);
+    }
+
+    /*
      * 可用高度不能直接读 wrap.clientHeight —— 画布本身有固定尺寸，
      * 会把这个 flex 子项撑住，形成"量到旧高度 → 画布不缩 → 继续溢出"的死循环。
      * 所以自己算：棋board区总高 - 其它兄弟元素（计时条、状态栏…）- 间隙。
@@ -279,8 +289,9 @@
      * 人机对战/本地对局那排按钮一出现，棋盘区可用高度变小、画布却还是旧的，
      * 底下一排棋子就会压到状态栏上）。这里只在真的需要时重画。
      */
-    if (geo.ready && cell === geo.cell && dpr === geo.dpr) return;
+    if (geo.ready && cell === geo.cell && dpr === geo.dpr && narrow === geo.narrow) return;
     geo.ready = true;
+    geo.narrow = narrow;
     geo.cell = cell;
     geo.margin = Math.round(cell * 0.78);
     geo.W = 8 * cell + 2 * geo.margin;
@@ -1143,6 +1154,7 @@
     var inRoom = (S.mode === 'online' && S.code);
     var playing = !!S.mode;                  // 本地对局也要有翻转/声音
     $('topbarActions').hidden = !playing;
+    $('boardTools').hidden = !playing;       // 棋盘右下角那组小工具同理
     var conn = $('connState');
     if (conn) {
       var live = wsOpen();
@@ -1714,14 +1726,17 @@
   function setTheme(name) {
     S.theme = (name === 'wood') ? 'wood' : 'dark';
     try { localStorage.setItem('xq.theme', S.theme); } catch (e) { }
-    $('btnTheme').textContent = S.theme === 'dark' ? '深色' : '木纹';
+    var label = '切换棋盘外观（当前：' + (S.theme === 'dark' ? '深色' : '木纹') + '）';
+    $('btnTheme').title = label;
+    $('btnTheme').setAttribute('aria-label', label);
     renderBg();
     S.dirty = true;
   }
 
   $('btnSound').addEventListener('click', function () {
     S.sound = !S.sound;
-    $('btnSound').textContent = S.sound ? '🔊' : '🔈';
+    $('btnSound').setAttribute('aria-pressed', S.sound ? 'true' : 'false');
+    $('btnSound').title = S.sound ? '声音：开' : '声音：关';
     if (S.sound) { Sound.init(); Sound.click(false); }
   });
 
@@ -1784,7 +1799,7 @@
     var savedTheme = '';
     try { savedTheme = localStorage.getItem('xq.theme') || ''; } catch (e) { }
     S.theme = (savedTheme === 'wood') ? 'wood' : 'dark';      // 默认深色
-    $('btnTheme').textContent = S.theme === 'dark' ? '深色' : '木纹';
+    $('btnTheme').title = '切换棋盘外观（当前：' + (S.theme === 'dark' ? '深色' : '木纹') + '）';
     var savedFont = '';
     try { savedFont = localStorage.getItem('xq.font') || ''; } catch (e) { }
     setFont(savedFont || 'kai');
