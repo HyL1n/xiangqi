@@ -24,8 +24,10 @@
   // 位置价值（红方视角：y 越小越接近对方底线）
   var PST = {
     P: makePST(function (x, y) { var adv = 9 - y; return adv * 4 + (adv > 4 ? 12 : 0) + (x > 0 && x < 8 ? 4 : 0); }),
-    N: makePST(function (x, y) { return (9 - y) * 3 + (x > 1 && x < 7 ? 8 : 0); }),
-    C: makePST(function (x, y) { var c = (x > 1 && x < 7) ? 8 : 0; return c + (y < 7 ? (7 - y) * 2 : 0); }),
+    // 马：鼓励出马、占中路
+    N: makePST(function (x, y) { return (9 - y) * 3 + (x >= 3 && x <= 5 ? 16 : (x >= 2 && x <= 6 ? 8 : 0)) + (y < 9 ? 6 : 0); }),
+    // 炮：强烈偏好中路（中炮），其次二/八路
+    C: makePST(function (x, y) { var c = (x >= 3 && x <= 5) ? 20 : (x >= 2 && x <= 6 ? 8 : 0); return c + (y <= 3 ? 10 : 0); }),
     R: makePST(function (x, y) { return (y <= 6 ? 10 : 0) + (x > 1 && x < 7 ? 6 : 0); }),
     A: makePST(function () { return 0; }),
     B: makePST(function () { return 0; }),
@@ -36,6 +38,27 @@
   var nodes = 0;
   var deadline = 0;
   var timedOut = false;
+
+  /* ---- Zobrist 哈希 + 置换表 + 杀手着法/历史启发（这三样比单纯加时间有效得多） ---- */
+  var ZOB = [];
+  (function () {
+    var seed = 0x2f6e2b1;
+    function rnd() { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return seed >>> 0; }
+    for (var i = 0; i < 90; i++) {
+      ZOB[i] = {};
+      var chars = 'KABNRCPkabnrcp';
+      for (var j = 0; j < chars.length; j++) ZOB[i][chars[j]] = rnd();
+    }
+  })();
+  var hash = 0;
+  var tt = new Map();
+  var killers = [];
+  var history = null;
+
+  function hashBoard() {
+    hash = 0;
+    for (var i = 0; i < 90; i++) { var c = b[i]; if (c !== '.') hash ^= ZOB[i][c]; }
+  }
 
   function idx(x, y) { return y * 9 + x; }
   function sideOf(ch) { return ch >= 'A' && ch <= 'Z' ? 'r' : 'b'; }
@@ -48,9 +71,22 @@
     return -1;
   }
 
-  // 走一步（返回被吃子），不改动棋盘结构
-  function make(m) { var cap = b[m[1]]; b[m[1]] = b[m[0]]; b[m[0]] = '.'; return cap; }
-  function unmake(m, cap) { b[m[0]] = b[m[1]]; b[m[1]] = cap; }
+  // 走一步（返回被吃子），同时维护 Zobrist 哈希
+  function make(m) {
+    var cap = b[m[1]], pc = b[m[0]];
+    hash ^= ZOB[m[0]][pc];
+    if (cap !== '.') hash ^= ZOB[m[1]][cap];
+    hash ^= ZOB[m[1]][pc];
+    b[m[1]] = pc; b[m[0]] = '.';
+    return cap;
+  }
+  function unmake(m, cap) {
+    var pc = b[m[1]];
+    hash ^= ZOB[m[1]][pc];
+    b[m[0]] = pc; b[m[1]] = cap;
+    hash ^= ZOB[m[0]][pc];
+    if (cap !== '.') hash ^= ZOB[m[1]][cap];
+  }
 
   // 自己将帅是否安全（含飞将）
   function kingSafe(side) {
@@ -99,6 +135,9 @@
     return VAL[typeOf(cap)] * 10 - VAL[typeOf(b[m[0]])];
   }
 
+  var SIDE_KEY = 0x9e3779b9;
+  var qDepth = 3;
+
   // 静态搜索：只往吃子方向延伸，避免"看着不亏其实被吃"
   function quiesce(side, alpha, beta, depth) {
     if ((++nodes & 1023) === 0 && Date.now() > deadline) { timedOut = true; return alpha; }
@@ -123,22 +162,68 @@
 
   function negamax(side, depth, alpha, beta, ply) {
     if ((++nodes & 1023) === 0 && Date.now() > deadline) { timedOut = true; return alpha; }
-    if (depth <= 0) return quiesce(side, alpha, beta, 3);
+
+    var alphaOrig = alpha;
+    var key = hash ^ (side === 'b' ? SIDE_KEY : 0);
+    var e = tt.get(key);
+    var ttMove = null;
+    if (e) {
+      ttMove = e.move;
+      if (e.depth >= depth) {
+        var sc = e.score;
+        if (sc > MATE - 1000) sc -= ply;
+        else if (sc < -MATE + 1000) sc += ply;
+        if (e.flag === 0) return sc;
+        if (e.flag === 1 && sc >= beta) return sc;
+        if (e.flag === 2 && sc <= alpha) return sc;
+      }
+    }
+
+    if (depth <= 0) return quiesce(side, alpha, beta, qDepth);
 
     var moves = genLegal(side);
     if (!moves.length) return -MATE + ply;          // 将死或困毙都算输
-    moves.sort(function (p, q) { return scoreMove(q) - scoreMove(p); });
 
+    var kp = killers[ply];
+    var k1 = kp ? kp[0] : null, k2 = kp ? kp[1] : null;
+    function ord(m) {
+      if (ttMove && m[0] === ttMove[0] && m[1] === ttMove[1]) return 1e9;
+      var cap = b[m[1]];
+      if (cap !== '.') return 1e6 + VAL[typeOf(cap)] * 10 - VAL[typeOf(b[m[0]])];
+      if (k1 && m[0] === k1[0] && m[1] === k1[1]) return 9e5;
+      if (k2 && m[0] === k2[0] && m[1] === k2[1]) return 8e5;
+      return history[m[0] * 90 + m[1]];
+    }
+    moves.sort(function (p, q) { return ord(q) - ord(p); });
+
+    var best = moves[0], bestScore = -Infinity, quietCut = false;
     for (var i = 0; i < moves.length; i++) {
-      var m = moves[i];
-      var cap = make(m);
+      var m = moves[i], cap = make(m);
       var v = -negamax(other(side), depth - 1, -beta, -alpha, ply + 1);
       unmake(m, cap);
       if (timedOut) return alpha;
-      if (v >= beta) return beta;
+      if (v > bestScore) { bestScore = v; best = m; }
       if (v > alpha) alpha = v;
+      if (alpha >= beta) {
+        if (cap === '.') {                     // 只把"安静着法"当杀手
+          killers[ply] = killers[ply] || [];
+          if (!killers[ply][0] || killers[ply][0][0] !== m[0] || killers[ply][0][1] !== m[1]) {
+            killers[ply][1] = killers[ply][0];
+            killers[ply][0] = m;
+          }
+          history[m[0] * 90 + m[1]] += depth * depth;
+        }
+        break;
+      }
     }
-    return alpha;
+
+    var flag = bestScore <= alphaOrig ? 2 : (bestScore >= beta ? 1 : 0);
+    var store = bestScore;
+    if (store > MATE - 1000) store += ply;
+    else if (store < -MATE + 1000) store -= ply;
+    if (tt.size > 400000) tt.clear();
+    tt.set(key, { depth: depth, score: store, flag: flag, move: best });
+    return bestScore;
   }
 
   function rootSearch(side, depth, firstMove) {
@@ -174,6 +259,11 @@
     nodes = 0; timedOut = false;
     deadline = Date.now() + (opts.timeMs || 400);
     var maxDepth = opts.depth || 4;
+    qDepth = opts.quiesce || 3;
+    killers = [];
+    history = new Int32Array(90 * 90);
+    if (qDepth !== findMove._q) { tt.clear(); findMove._q = qDepth; }   // 静态搜索深度变了，旧表不能用
+    hashBoard();
     var best = null, bestScore = 0, lastScored = null;
 
     for (var d = 1; d <= maxDepth; d++) {
@@ -197,13 +287,13 @@
       var any = genLegal(side);
       if (any.length) best = any[Math.floor(Math.random() * any.length)];
     }
-    return { move: best, score: bestScore, nodes: nodes, board: b.join('') };
+    return { move: best, score: bestScore, nodes: nodes, tt: tt.size, board: b.join('') };
   }
 
   var LEVELS = {
-    easy: { timeMs: 120, depth: 2, random: 90 },
-    normal: { timeMs: 420, depth: 3, random: 0 },
-    hard: { timeMs: 1100, depth: 4, random: 0 }
+    easy: { timeMs: 120, depth: 2, quiesce: 2, random: 90 },
+    normal: { timeMs: 600, depth: 4, quiesce: 3 },
+    hard: { timeMs: 3000, depth: 8, quiesce: 5 }        // 最强档：时间/深度都给足
   };
 
   return {

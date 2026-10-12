@@ -815,23 +815,73 @@
       renderAll();
       return;
     }
+    var side = g.turn;
+    var board = g.board.join('');
+    var cfg = levelCfg(S.aiLevel);
+    askEngine(board, side, cfg, function (move) {
+      // 算完时局面可能已经变了（比如玩家点了悔棋），稳妥起见再校验一次
+      var gg = S.local;
+      var applied = false;
+      if (gg && gg.status === 'playing' && gg.turn === side && move) {
+        applied = !!gg.move(move[0], move[1]).ok;
+      }
+      if (!applied && gg && gg.status === 'playing' && gg.turn === side) {
+        var ms = gg.legalMoves();
+        if (ms.length) {
+          var pick = ms[Math.floor(Math.random() * ms.length)];
+          gg.move(pick.from, pick.to);
+        }
+      }
+      S.aiThinking = false;
+      setView(localView());
+      renderAll();
+    });
+  }
+
+  function levelCfg(lv) {
     var eng = window.XiangqiEngine;
-    var cfg = (eng && eng.levels && eng.levels[S.aiLevel]) || { timeMs: 400, depth: 3 };
-    var res = null;
-    try { res = eng ? eng.findMove(g.board.join(''), g.turn, cfg) : null; } catch (e) { res = null; }
-    var applied = false;
-    if (res && res.move) applied = !!g.move(res.move[0], res.move[1]).ok;
-    if (!applied) {
-      // 兜底：引擎不可用或超时，随便走一步合法的，别让对局卡住
-      var ms = g.legalMoves();
-      if (ms.length) {
-        var pick = ms[Math.floor(Math.random() * ms.length)];
-        g.move(pick.from, pick.to);
+    var cfg = (eng && eng.levels && eng.levels[lv]) || { timeMs: 400, depth: 3 };
+    // 退回主线程算的话，把时间压到 900ms 以内，别让界面卡太久
+    return S.aiWorker ? cfg : Object.assign({}, cfg, { timeMs: Math.min(cfg.timeMs || 400, 900) });
+  }
+
+  /*
+   * 把局面丢给后台线程算，算完回调。拿不到 Worker（老浏览器/某些环境）就退回主线程。
+   */
+  function askEngine(board, side, cfg, done) {
+    if (!askEngine.w && window.Worker) {
+      try { askEngine.w = new Worker('ai-worker.js'); } catch (e) { askEngine.w = null; }
+      if (askEngine.w) {
+        askEngine.w.onmessage = function (ev) {
+          var d = ev.data || {};
+          if (askEngine.pending && d.id === askEngine.pending.id) {
+            var cb = askEngine.pending.cb;
+            askEngine.pending = null;
+            clearTimeout(askEngine.timer);
+            cb(d.move || null);
+          }
+        };
+        askEngine.w.onerror = function () { askEngine.w = null; };
       }
     }
-    S.aiThinking = false;
-    setView(localView());
-    renderAll();
+    S.aiWorker = !!askEngine.w;
+    if (!askEngine.w) {                       // 主线程兜底
+      var res = null;
+      try { res = window.XiangqiEngine ? XiangqiEngine.findMove(board, side, cfg) : null; } catch (e) { res = null; }
+      done(res && res.move ? res.move : null);
+      return;
+    }
+    askEngine.n = (askEngine.n || 0) + 1;
+    askEngine.pending = { id: askEngine.n, cb: done };
+    clearTimeout(askEngine.timer);
+    askEngine.timer = setTimeout(function () {      // 后台线程没回话也别卡死
+      if (askEngine.pending) {
+        var cb2 = askEngine.pending.cb;
+        askEngine.pending = null;
+        cb2(null);
+      }
+    }, (cfg.timeMs || 400) + 5000);
+    askEngine.w.postMessage({ id: askEngine.n, board: board, side: side, cfg: cfg });
   }
 
   /* ---------------- 走子 ---------------- */
