@@ -59,13 +59,22 @@
 
   function theme() { return THEMES[S.theme] || THEMES.dark; }
 
-  // 棋子字体（权重 700 走合成加粗；系统里没有的会自动回退到下一个）
+  /*
+   * 棋子字体：只挑各系统"一定有、而且彼此明显不同"的字体，
+   * 避免出现"两个选项其实同一个字体"（华文行楷这类在 Windows 默认不装）。
+   * 字重固定 500：避免 canvas 对中文字体做合成加粗（糊成一团，就是"字体奇怪"的来源）。
+   */
   var FONTS = {
-    kai: 'KaiTi, "Kaiti SC", STKaiti, 楷体, "Songti SC", serif',
-    xingkai: '"STXingkai", "华文行楷", "Xingkai SC", "Yuanti SC", KaiTi, 楷体, serif',
-    song: '"Source Han Serif SC", "Noto Serif SC", "Songti SC", STSong, SimSun, 宋体, serif'
+    kai: { label: '楷体', css: 'KaiTi, "Kaiti SC", STKaiti, 楷体, serif' },
+    song: { label: '宋体', css: '"Songti SC", STSong, SimSun, 宋体, serif' },
+    hei: { label: '黑体', css: 'SimHei, 黑体, "Microsoft YaHei", "PingFang SC", sans-serif' },
+    yuan: { label: '幼圆', css: 'YouYuan, 幼圆, "Yuanti SC", "PingFang SC", sans-serif' },
+    li: { label: '隶书', css: 'LiSu, 隶书, STLibian, "Yuanti SC", serif' }
   };
-  function pieceFont() { return FONTS[S.font] || FONTS.kai; }
+  function pieceFont() {
+    var f = FONTS[S.font];
+    return (f ? f.css : FONTS.kai.css);
+  }
 
   function boardName(ch) {
     var g = BOARD_GLYPH[X.sideOf(ch)];
@@ -88,7 +97,7 @@
     legalCache: [],
     sound: true,
     theme: 'dark',
-    font: 'xingkai',
+    font: 'kai',
     ws: null,
     serverCfg: null,
     probed: false,
@@ -446,9 +455,12 @@
      */
     var glyph = boardName(ch);
     c.textAlign = 'center';
-    c.font = '700 ' + (r * 1.34) + 'px ' + pieceFont();
+    // 500：中文系统字体大多只有 400/700，用 700 会被 canvas 合成加粗（发糊、发虚）
+    c.font = '500 ' + (r * 1.34) + 'px ' + pieceFont();
     var gx = cx;
-    var gy = faceY + r * 0.05;               // 兜底：按字身框居中
+    // 竖直方向按"整颗棋子"（含下方圆柱侧面）的视觉中心对齐，而不是只对齐顶面
+    var visualCenter = cy + depth * 0.16;
+    var gy = visualCenter + r * 0.05;        // 兜底：按字身框居中
     c.textBaseline = 'middle';
     var mt = null;
     try { mt = c.measureText(glyph); } catch (e) { mt = null; }
@@ -460,7 +472,7 @@
       var inkR = mt.actualBoundingBoxRight || 0;
       c.textBaseline = 'alphabetic';
       gx = cx + (inkL - inkR) / 2;
-      gy = faceY + (asc - desc) / 2;
+      gy = visualCenter + (asc - desc) / 2;
     }
     c.fillStyle = pal.glyphShadow;
     c.fillText(glyph, gx, gy + Math.max(1, r * 0.045));
@@ -1538,7 +1550,7 @@
     $('btnTheme').textContent = S.theme === 'dark' ? '深色' : '木纹';
     var savedFont = '';
     try { savedFont = localStorage.getItem('xq.font') || ''; } catch (e) { }
-    setFont(savedFont || 'xingkai');
+    setFont(savedFont || 'kai');
     buildGrid();
     layout();
     focusCursor(0, false);
@@ -1596,3 +1608,4 @@
   window.__xq = { S: S, draw: draw, layout: layout, setView: setView, localView: localView, renderAll: renderAll, toast: toast };
   init();
 })();
+
