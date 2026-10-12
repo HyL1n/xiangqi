@@ -365,7 +365,16 @@ select.btn option {
   border: 1px solid var(--line); background: var(--bg-soft);
 }
 .field input:focus { outline: none; border-color: var(--gold); }
-#codeInput { text-transform: uppercase; letter-spacing: .3em; font-family: ui-monospace, monospace; font-size: 17px; }
+/* 房间号：字要粗一点、别太细，不然深色底上几乎看不见 */
+#codeInput {
+  text-transform: uppercase; letter-spacing: .3em;
+  font-family: ui-monospace, monospace; font-size: 17px; font-weight: 700;
+}
+/* 占位文字（"房间号"三个字）单独调：不要拉宽字距，加粗一点、亮一点 */
+#codeInput::placeholder {
+  letter-spacing: normal; font-family: inherit;
+  font-weight: 600; color: var(--muted); opacity: 1;
+}
 
 .seg { display: flex; gap: 6px; flex-wrap: wrap; }
 .seg button {
@@ -381,6 +390,8 @@ select.btn option {
 /* 人机对战那一行：下拉按内容宽度，按钮把剩下的宽度撑满（不然右边空一大块，看着别扭） */
 #aiLevel { flex: 0 0 auto; }
 #btnAI { flex: 1 1 auto; }
+/* 标签跟下拉框排在同一行（原来悬在上面一行，跟下面的控件像是两回事） */
+.joinrow > label { flex: 0 0 auto; align-self: center; font-size: 12px; color: var(--muted); white-space: nowrap; }
 
 .linkbox {
   margin-top: 10px; display: flex; gap: 6px;
