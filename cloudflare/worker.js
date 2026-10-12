@@ -59,7 +59,25 @@ export class RoomDO {
       const code = this.state.id && this.state.id.name ? this.state.id.name : 'ROOM';
       this._room = newRoom(code, 0, Date.now());
     }
+    // 记录已经下发到哪一条聊天：休眠唤醒后只补发新消息，不重放历史
+    this._lastChatId = this._room.chatSeq || 0;
     return this._room;
+  }
+
+  /*
+   * 把这次处理中新产生的聊天/系统消息发给房间里每个人。
+   * 聊天只写进房间状态是不够的 —— DO 广播的是棋局状态，不转发消息，
+   * 线上曾经因此"聊天谁都看不到"。
+   */
+  flushChat(room) {
+    const last = this._lastChatId || 0;
+    const fresh = room.chat.filter((m) => m && m.id && m.id > last);
+    if (!fresh.length) return;
+    this._lastChatId = fresh[fresh.length - 1].id;
+    const conns = this.liveConns();
+    for (const c of conns) {
+      for (const m of fresh) c.send(m);
+    }
   }
 
   async persist() {
@@ -168,6 +186,7 @@ export class RoomDO {
 
     if (changed) {
       await this.persist();
+      this.flushChat(room);
       await this.broadcast();
       await this.syncAlarm();
     } else {

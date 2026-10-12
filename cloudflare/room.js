@@ -46,6 +46,7 @@ export function newRoom(code, timeBase, now) {
     quietPlies: 0,
     check: false,
     chat: [],
+    chatSeq: 0,          // 聊天消息自增 id：客户端靠它去重、补历史
     clocks: { r: base, b: base },
     turnStart: now || 0,
     lastMove: null,
@@ -121,6 +122,9 @@ export function publicState(room, conn, now) {
     clocks: { r: clockNow(room, 'r', t), b: clockNow(room, 'b', t) },
     pending: room.pending,
     rematchVotes: room.rematchVotes.slice(),
+    // 聊天记录跟着状态一起下发（最多 40 条）：Durable Object 不会像常驻进程那样
+    // 逐条转发消息，客户端靠 id 去重、并能补上进入房间前的历史
+    chat: room.chat.slice(-40),
     started: !!(room.seats.r && room.seats.b),
     serverTime: t
   };
@@ -187,7 +191,8 @@ export function checkTimeout(room, now) {
 }
 
 function sysChat(room, text, kind) {
-  const msg = { t: 'chat', name: '系统', text, ts: Date.now(), system: true, kind: kind || 'info' };
+  room.chatSeq = (room.chatSeq || 0) + 1;
+  const msg = { t: 'chat', id: room.chatSeq, name: '系统', text, ts: Date.now(), system: true, kind: kind || 'info' };
   room.chat.push(msg);
   if (room.chat.length > 200) room.chat.shift();
   return msg;
@@ -363,7 +368,8 @@ export function handleMessage(room, conn, msg, env) {
     case 'chat': {
       const text = String(msg.text || '').slice(0, 300).trim();
       if (!text) return false;
-      room.chat.push({ t: 'chat', name: conn.name, seat: conn.seat, text, ts: Date.now() });
+      room.chatSeq = (room.chatSeq || 0) + 1;
+      room.chat.push({ t: 'chat', id: room.chatSeq, name: conn.name, seat: conn.seat, text, ts: Date.now() });
       if (room.chat.length > 200) room.chat.shift();
       return true;
     }
@@ -383,3 +389,4 @@ export function handleMessage(room, conn, msg, env) {
 }
 
 export { X };
+

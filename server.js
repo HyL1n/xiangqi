@@ -209,6 +209,7 @@ function createRoom(timeBase, wanted) {
     spectators: new Set(),
     game: new X.Game(),
     chat: [],
+    chatSeq: 0,
     clocks: { r: 0, b: 0 },
     turnStart: null,
     lastMove: null,
@@ -263,6 +264,7 @@ function publicState(room, conn) {
     clocks: { r: clockNow(room, 'r'), b: clockNow(room, 'b') },
     pending: room.pending,
     rematchVotes: Array.from(room.rematch),
+    chat: room.chat.slice(-40),
     started: !!(room.seats.r && room.seats.b)
   };
 }
@@ -284,7 +286,8 @@ function broadcastClocks(room) {
 }
 
 function sysChat(room, text, kind) {
-  const msg = { t: 'chat', name: '系统', text, ts: Date.now(), system: true, kind: kind || 'info' };
+  room.chatSeq = (room.chatSeq || 0) + 1;
+  const msg = { t: 'chat', id: room.chatSeq, name: '系统', text, ts: Date.now(), system: true, kind: kind || 'info' };
   room.chat.push(msg);
   if (room.chat.length > 200) room.chat.shift();
   const members = [];
@@ -522,7 +525,8 @@ function onMessage(conn, buf) {
     case 'chat': {
       const text = String(msg.text || '').slice(0, 300).trim();
       if (!text) return;
-      const m = { t: 'chat', name: conn.name, seat: conn.seat, text, ts: Date.now() };
+      room.chatSeq = (room.chatSeq || 0) + 1;
+      const m = { t: 'chat', id: room.chatSeq, name: conn.name, seat: conn.seat, text, ts: Date.now() };
       room.chat.push(m);
       if (room.chat.length > 200) room.chat.shift();
       const members = seatedConns(room).concat(Array.from(room.spectators));

@@ -106,6 +106,7 @@
     confirm: null,
     modalKey: null,
     modalDismissed: null,
+    seenChat: {},
     chats: [],
     dirty: true
   };
@@ -367,8 +368,8 @@
     var side = X.sideOf(ch);
     var th = theme();
     var pal = th.piece[side];
-    var depth = r * 0.21;            // 棋子厚度（侧面高度）
-    var faceY = cy - depth * 0.22;   // 顶面比圆心略上移，视觉上像俯视一枚厚圆片
+    var depth = r * 0.13;            // 棋子厚度（侧面高度，调矮一点）
+    var faceY = cy - depth * 0.18;   // 顶面比圆心略上移，视觉上像俯视一枚圆片
     c.save();
 
     // 1) 落地阴影：几层逐渐变淡的椭圆模拟模糊
@@ -376,7 +377,7 @@
       c.beginPath();
       c.ellipse(cx + r * 0.05 * i, cy + depth * 0.6 + r * 0.06 * i,
         r * (0.98 + 0.05 * i), r * (0.86 + 0.05 * i), 0, 0, Math.PI * 2);
-      c.fillStyle = 'rgba(0,0,0,' + (0.12 + 0.05 * i) + ')';
+      c.fillStyle = 'rgba(0,0,0,' + (0.10 + 0.04 * i) + ')';
       c.fill();
     }
 
@@ -437,14 +438,33 @@
       c.fill();
     }
 
-    // 7) 字：先压一层暗影再写白字，做出刻上去的感觉
+    /*
+     * 7) 字：先压一层暗影再写白字，做出刻上去的感觉。
+     * 位置用 measureText 的墨迹边界精确居中 —— 不同字体在字身框里的位置不一样，
+     * 按字身框 + 固定偏移估会出现"看着偏一点"。
+     */
+    var glyph = boardName(ch);
     c.textAlign = 'center';
-    c.textBaseline = 'middle';
     c.font = '700 ' + (r * 1.34) + 'px ' + pieceFont();
+    var gx = cx;
+    var gy = faceY + r * 0.05;               // 兜底：按字身框居中
+    c.textBaseline = 'middle';
+    var mt = null;
+    try { mt = c.measureText(glyph); } catch (e) { mt = null; }
+    if (mt && typeof mt.actualBoundingBoxAscent === 'number') {
+      // 有墨迹边界就用它精确居中（alphabetic 基线：y 是基线位置）
+      var asc = mt.actualBoundingBoxAscent || 0;
+      var desc = mt.actualBoundingBoxDescent || 0;
+      var inkL = mt.actualBoundingBoxLeft || 0;
+      var inkR = mt.actualBoundingBoxRight || 0;
+      c.textBaseline = 'alphabetic';
+      gx = cx + (inkL - inkR) / 2;
+      gy = faceY + (asc - desc) / 2;
+    }
     c.fillStyle = pal.glyphShadow;
-    c.fillText(boardName(ch), cx, faceY + r * 0.08 + Math.max(1, r * 0.045));
+    c.fillText(glyph, gx, gy + Math.max(1, r * 0.045));
     c.fillStyle = pal.glyph;
-    c.fillText(boardName(ch), cx, faceY + r * 0.05);
+    c.fillText(glyph, gx, gy);
     c.restore();
   }
 
@@ -792,6 +812,7 @@
     var v = S.view;
     var box = $('players');
     if (!v) { box.innerHTML = ''; return; }
+    var clocks = liveClocks() || v.clocks || { r: null, b: null };
     var order = S.flipped ? ['b', 'r'] : ['r', 'b'];
     box.innerHTML = order.map(function (side) {
       var s = v.seats[side];
@@ -803,40 +824,15 @@
       var meta = s
         ? '<span class="dot ' + (s.online === false ? '' : 'live') + '"></span>' + NAME_CN[side] + (s.online === false ? ' · 已断开' : ' · 在线')
         : NAME_CN[side] + ' · 空座';
+      // 时间放回玩家卡片里（这是最初的样式）
+      var clock = v.timeBase
+        ? '<div class="clock' + ((clocks[side] != null && clocks[side] < 30000) ? ' low' : '') + '">' + fmtClock(clocks[side]) + '</div>'
+        : '';
       return '<div class="' + cls + '">' +
         '<div class="face">' + (side === 'r' ? '帥' : '將') + '</div>' +
         '<div class="who"><div class="n">' + name + you + '</div><div class="m">' + meta + '</div></div>' +
-        '</div>';
+        clock + '</div>';
     }).join('');
-  }
-
-  // 状态栏里的紧凑计时胶囊
-  function renderClocks() {
-    var v = S.view;
-    var box = $('miniClocks');
-    if (!box) return;
-    var want = !!(v && v.timeBase);
-    if (box.hidden === want) { box.hidden = !want; }
-    if (!want) return;
-    var clocks = liveClocks() || v.clocks || { r: 0, b: 0 };
-    var order = S.flipped ? ['b', 'r'] : ['r', 'b'];
-    var slots = ['mcA', 'mcB'];
-    var shortName = { r: '红', b: '黑' };
-    order.forEach(function (side, i) {
-      var el = $(slots[i]);
-      if (!el) return;
-      var ms = clocks[side];
-      var cls = 'mc';
-      if (v.status === 'playing' && v.turn === side) cls += ' active';
-      if (ms != null && ms < 30000) cls += ' low';
-      if (el.className !== cls) el.className = cls;
-      var nameEl = el.querySelector('i');
-      var want2 = shortName[side];
-      if (nameEl.textContent !== want2) nameEl.textContent = want2;
-      var t = el.querySelector('b');
-      var text = fmtClock(ms);
-      if (t.textContent !== text) t.textContent = text;
-    });
   }
 
   function renderActions() {
@@ -897,10 +893,18 @@
     box.scrollTop = box.scrollHeight;
   }
 
+  /*
+   * 聊天渲染：服务端把聊天记录随状态一起下发（最多 40 条）+ 也会单独推消息，
+   * 所以这里按 id 去重；没有 id 的老消息用 时间+名字+内容 兜底去重。
+   */
   function renderChat(msgs) {
     var log = $('chatlog');
-    if (msgs) {
+    if (msgs && msgs.length) {
       msgs.forEach(function (m) {
+        if (!m || m.t !== 'chat' || !m.text) return;
+        var key = (m.id != null) ? ('i' + m.id) : ('k' + m.ts + '|' + (m.name || '') + '|' + m.text);
+        if (S.seenChat[key]) return;
+        S.seenChat[key] = true;
         S.chats.push(m);
         var el = document.createElement('div');
         if (m.system) {
@@ -914,7 +918,7 @@
         log.appendChild(el);
       });
       while (log.children.length > 200) log.removeChild(log.firstChild);
-      log.scrollTop = log.scrollHeight;
+      if (S.chats.length < 60) log.scrollTop = log.scrollHeight;
     }
   }
 
@@ -924,7 +928,6 @@
     var right = $('statusRight');
     if (!v || S.mode === 'local') { right.innerHTML = ''; return; }
     var bits = [];
-    bits.push('<span class="dot ' + (wsOpen() ? 'live' : '') + '"></span>' + (wsOpen() ? '已连接' : '连接中…'));
     if (v.spectators) bits.push('观战 ' + v.spectators + ' 人');
     right.innerHTML = bits.join(' · ');
   }
@@ -933,6 +936,12 @@
     var inRoom = (S.mode === 'online' && S.code);
     var playing = !!S.mode;                  // 本地对局也要有翻转/声音
     $('topbarActions').hidden = !playing;
+    var conn = $('connState');
+    if (conn) {
+      var live = wsOpen();
+      conn.className = 'conn' + (live ? ' live' : '');
+      conn.querySelector('b').textContent = S.mode === 'local' ? '本地对局' : (live ? '已连接' : '连接中…');
+    }
     $('codeChip').hidden = !inRoom;
     $('btnInvite').hidden = !inRoom;
     if (inRoom) $('roomCode').textContent = S.code;
@@ -944,12 +953,12 @@
   function renderAll() {
     renderTop();
     renderPlayers();
-    renderClocks();
     renderActions();
     renderHist();
     renderStatus();
     renderModal();
     syncGrid();
+    if (S.view) renderChat(S.view.chat);
     S.dirty = true;
   }
 
@@ -1162,6 +1171,9 @@
         S.you = m.seat || null;
         S.token = m.token || S.token;
         if (S.token) { try { localStorage.setItem(LS_TOKEN + m.code, S.token); } catch (e) { } }
+        S.seenChat = {};                    // 换房间了，聊天去重表与记录清空
+        S.chats = [];
+        if ($('chatlog')) $('chatlog').innerHTML = '';
         if (autoFlipFor(S.you)) { renderBg(); placeGrid(); }
         history.replaceState(null, '', '?room=' + m.code);
         hideLobby();
@@ -1269,6 +1281,7 @@
     S.ws = null;
     S.code = null; S.you = null; S.token = null; S.view = null; S.mode = null;
     S.queue = []; S.sel = null; S.targets = [];
+    S.seenChat = {};
     S.chats = [];
     $('chatlog').innerHTML = '';
     $('chatCard').classList.remove('hidden');
@@ -1499,13 +1512,21 @@
     if (document.hidden) S.dirty = true;
   }, 20000);
 
-  // 有计时的对局里每 200ms 刷新大号计时器（只改这两个节点，不重建 DOM）
+  // 有计时的对局里刷新玩家卡片上的时间（只改这两个节点，不重建 DOM）
   setInterval(function () {
     var v = S.view;
     if (!v || !v.timeBase || v.status !== 'playing') return;
     if (document.hidden) return;
-    renderClocks();
-  }, 200);
+    var clocks = liveClocks();
+    if (!clocks) return;
+    var nodes = $('players').querySelectorAll('.pcard .clock');
+    var order = S.flipped ? ['b', 'r'] : ['r', 'b'];
+    for (var i = 0; i < nodes.length && i < order.length; i++) {
+      var ms = clocks[order[i]];
+      nodes[i].textContent = fmtClock(ms);
+      nodes[i].className = 'clock' + (ms != null && ms < 30000 ? ' low' : '');
+    }
+  }, 250);
 
   /* ---------------- 启动 ---------------- */
 

@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/test-rules.js && node tests/test-server.js && node tests/test-cloudflare-room.mjs"
+    "test": "node tests/test-rules.js && node tests/test-server.js && node tests/test-cloudflare-room.mjs && node tests/test-cloudflare-do.mjs"
   },
   "engines": {
     "node": ">=18"
