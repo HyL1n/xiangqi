@@ -368,8 +368,8 @@
     var side = X.sideOf(ch);
     var th = theme();
     var pal = th.piece[side];
-    var depth = r * 0.16;            // 棋子厚度（侧面高度）
-    var faceY = cy - depth * 0.2;    // 顶面比圆心略上移，视觉上像俯视一枚厚圆片
+    var depth = r * 0.21;            // 棋子厚度（侧面高度）
+    var faceY = cy - depth * 0.22;   // 顶面比圆心略上移，视觉上像俯视一枚厚圆片
     c.save();
 
     // 1) 落地阴影：几层逐渐变淡的椭圆模拟模糊
@@ -377,7 +377,7 @@
       c.beginPath();
       c.ellipse(cx + r * 0.05 * i, cy + depth * 0.6 + r * 0.06 * i,
         r * (0.98 + 0.05 * i), r * (0.86 + 0.05 * i), 0, 0, Math.PI * 2);
-      c.fillStyle = 'rgba(0,0,0,' + (0.10 + 0.04 * i) + ')';
+      c.fillStyle = 'rgba(0,0,0,' + (0.12 + 0.05 * i) + ')';
       c.fill();
     }
 
