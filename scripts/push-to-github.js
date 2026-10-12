@@ -43,6 +43,11 @@ function gitOK(args) {
   return r.status === 0;
 }
 function out(r) { return ((r && r.stdout) || '') + ((r && r.stderr) || ''); }
+// 缩进一下再打印：git 的原话要原样亮出来，否则推不动时完全不知道原因
+function indent(t) {
+  return String(t == null ? '' : t).trim().split('\n').map((l) => '    ' + l).join('\n');
+}
+function gotRef(name) { return git(['rev-parse', '--verify', '--quiet', name]).status === 0; }
 
 function portOpen(host, port) {
   return new Promise((resolve) => {
@@ -122,22 +127,55 @@ function portOpen(host, port) {
   const proxyUp = await portOpen('127.0.0.1', 7897);
   if (proxyUp) ok('本地代理 7897 可用（Clash）'); else bad('本地 7897 没在监听，推送可能连不上 github');
 
+  /*
+   * 之前踩过的坑：在 GitHub 网页上编辑过文件（比如改 README），远端就有了本地没有的提交，
+   * 这时推送会被拒（non-fast-forward），而脚本把 git 的输出吞了，光看提示猜不出原因。
+   * 所以先 fetch 一次：远端有额外提交就先并进来（保留它在历史里的位置，内容以本地为准），保证能快进推送。
+   */
+  step('同步远端（防止"网页上改过东西"导致推送被拒）');
+  if (DRY) {
+    say('  （dry-run：跳过）');
+  } else {
+    const fetched = git(['fetch', 'origin', 'main']);
+    if (fetched.status !== 0) {
+      bad('读取远端失败（多半是网络/代理），下面仍然直接试推');
+    } else if (!gotRef('origin/main')) {
+      ok('远端还没有 main 分支，这次是第一次推送');
+    } else if (git(['merge-base', '--is-ancestor', 'origin/main', 'HEAD']).status === 0) {
+      ok('远端没有额外提交，可以直接快进推送');
+    } else {
+      bad('远端有本地没有的提交（多半是在 GitHub 网页上改过），先并进来');
+      const m = git(['merge', '-s', 'ours', '--no-edit', '-m', '合并远端改动（内容以本地为准）', 'origin/main']);
+      if (m.status === 0) ok('已合并：远端那次改动的内容以本地为准，只保留它在历史里的位置');
+      else { bad('合并失败：'); say(indent(out(m))); }
+    }
+  }
+
   step('推送（这一步会弹出 GitHub 授权，请在浏览器里确认）');
-  let pushed = gitOK(['push', '-u', 'origin', 'main']);
-  if (!pushed && proxyUp) {
-    bad('第一次推送失败，改用显式代理再试一次');
-    pushed = gitOK(['-c', 'http.proxy=' + PROXY, 'push', '-u', 'origin', 'main']);
+  const r1 = git(['push', '-u', 'origin', 'main']);
+  let pushed = r1.status === 0;
+  if (!pushed) {
+    bad('第一次推送失败，git 的原话：');
+    say(indent(out(r1)) || '    （git 没有任何输出）');
+    if (proxyUp) {
+      bad('改用显式代理再试一次');
+      const r2 = git(['-c', 'http.proxy=' + PROXY, 'push', '-u', 'origin', 'main']);
+      pushed = r2.status === 0;
+      if (!pushed) { bad('还是失败，git 的原话：'); say(indent(out(r2)) || '    （git 没有任何输出）'); }
+    }
   }
 
   console.log('');
   if (pushed) {
     say('✅ 推送成功！');
     say('   仓库地址: ' + REPO_URL.replace(/\.git$/, ''));
-    say('   下一步：去 Render 用这个仓库建服务（Blueprint 会读 render.yaml）。');
+    say('   线上站点（Cloudflare Workers）: https://xiangqi.hyl1n.workers.dev');
     say('   这个临时副本可以删掉：' + WORK);
   } else {
     say('❌ 推送没有成功，对照下面的情况处理，然后重新双击本脚本：');
     say('');
+    say('  · 提示 rejected / non-fast-forward / fetch first');
+    say('      → 远端有你在线改过的提交。重新双击一次本脚本，它会先合并再推。');
     say('  · 提示 Repository not found / 403');
     say('      → 说明 GitHub 上还没有这个仓库。先打开 https://github.com/new');
     say('        名字填 xiangqi，选 Public，不要勾 Add a README，点 Create repository。');
@@ -146,5 +184,7 @@ function portOpen(host, port) {
     say('     或执行一次：git config --global http.proxy ' + PROXY);
     say('  · 提示 Permission denied / 需要密码 → GitHub 不再接受账号密码，');
     say('     请用浏览器授权，或改用 Personal Access Token 作为密码。');
+    say('  · 提示 SSL / schannel / git-remote-https 应用程序错误 → 关掉再打开 Clash，');
+    say('     然后重新双击本脚本；还不行就把上面"git 的原话"发给我。');
   }
 })().catch((e) => { console.error('脚本异常: ' + e.message); process.exit(1); });
