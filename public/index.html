@@ -132,18 +132,18 @@
 
     <div class="or">没有网络也能玩</div>
 
-    <button class="btn ghost" id="btnLocal" style="width:100%">同一台设备上轮流下（本地对局）</button>
-
-    <div class="joinrow" style="margin-top:8px">
+    <div class="joinrow">
       <label for="aiLevel">难度</label>
       <select id="aiLevel" class="btn" title="电脑棋力（难度）" aria-label="电脑棋力（难度）">
         <option value="easy">简单</option>
         <option value="normal" selected>普通</option>
         <option value="hard">较难</option>
       </select>
-      <button class="btn" id="btnAI">和电脑对弈</button>
+      <button class="btn primary" id="btnAI">和电脑对弈</button>
     </div>
     <p class="tiny"><b>较难</b>是电脑最强的一档。</p>
+
+    <button class="btn ghost" id="btnLocal" style="width:100%;margin-top:10px">同一台设备上轮流下（本地对局）</button>
 
     <p class="sub tiny" id="lobbyHint"></p>
   </div>

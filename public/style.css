@@ -129,9 +129,9 @@ main {
   bottom: 6px;
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border-radius: 11px;
+  gap: 3px;
+  padding: 4px;
+  border-radius: 13px;
   border: 1px solid var(--line);
   background: rgba(20, 23, 30, .72);
   backdrop-filter: blur(6px);
@@ -140,7 +140,7 @@ main {
 }
 .board-tools:hover, .board-tools:focus-within { opacity: 1; }
 .tool {
-  width: 28px; height: 28px;
+  width: 34px; height: 34px;
   display: grid; place-items: center;
   padding: 0;
   border: 0; border-radius: 8px;
@@ -148,17 +148,17 @@ main {
   cursor: pointer;
 }
 .tool:hover { background: var(--card-2); color: var(--text); }
-.tool svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.tool svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .tool svg .solid { fill: currentColor; stroke: none; }
 .tool svg .mute { display: none; }
 #btnSound[aria-pressed="false"] svg .w1,
 #btnSound[aria-pressed="false"] svg .w2 { display: none; }
 #btnSound[aria-pressed="false"] svg .mute { display: block; }
 .tool-sel {
-  height: 28px; padding: 0 4px;
+  height: 34px; padding: 0 6px;
   border: 0; border-radius: 8px;
   background: transparent; color: var(--muted);
-  font-size: 12px; cursor: pointer;
+  font-size: 13px; cursor: pointer;
 }
 .tool-sel:hover { background: var(--card-2); color: var(--text); }
 /* 窄屏时这组工具挪进底部状态栏，就别再做成浮层了 */
