@@ -461,18 +461,20 @@
     // 竖直方向按"整颗棋子"（含下方圆柱侧面）的视觉中心对齐，而不是只对齐顶面
     var visualCenter = cy + depth * 0.16;
     var gy = visualCenter + r * 0.05;        // 兜底：按字身框居中
-    c.textBaseline = 'middle';
+    // 关键：必须先设成 alphabetic 再量 —— 否则 measureText 返回的墨迹边界
+    // 是以"字身中间"为基准的，套用基线公式会差出半个字高（实测偏高 11~14px）
+    c.textBaseline = 'alphabetic';
     var mt = null;
     try { mt = c.measureText(glyph); } catch (e) { mt = null; }
     if (mt && typeof mt.actualBoundingBoxAscent === 'number') {
-      // 有墨迹边界就用它精确居中（alphabetic 基线：y 是基线位置）
       var asc = mt.actualBoundingBoxAscent || 0;
       var desc = mt.actualBoundingBoxDescent || 0;
       var inkL = mt.actualBoundingBoxLeft || 0;
       var inkR = mt.actualBoundingBoxRight || 0;
-      c.textBaseline = 'alphabetic';
       gx = cx + (inkL - inkR) / 2;
       gy = visualCenter + (asc - desc) / 2;
+    } else {
+      c.textBaseline = 'middle';
     }
     c.fillStyle = pal.glyphShadow;
     c.fillText(glyph, gx, gy + Math.max(1, r * 0.045));
@@ -1608,4 +1610,5 @@
   window.__xq = { S: S, draw: draw, layout: layout, setView: setView, localView: localView, renderAll: renderAll, toast: toast };
   init();
 })();
+
 
