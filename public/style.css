@@ -378,6 +378,9 @@ select.btn option {
 .or::before, .or::after { content: ""; height: 1px; background: var(--line); flex: 1 1 auto; }
 .joinrow { display: flex; gap: 8px; }
 .joinrow input { flex: 1 1 auto; }
+/* 人机对战那一行：下拉按内容宽度，按钮把剩下的宽度撑满（不然右边空一大块，看着别扭） */
+#aiLevel { flex: 0 0 auto; }
+#btnAI { flex: 1 1 auto; }
 
 .linkbox {
   margin-top: 10px; display: flex; gap: 6px;
