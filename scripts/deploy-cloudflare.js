@@ -28,15 +28,21 @@ function step(t) { console.log('\n▶ ' + t); }
 function ok(t) { console.log('  ✓ ' + t); }
 function bad(t) { console.log('  ✗ ' + t); }
 
-function run(cmd, args, opts) {
+function run(cmd, args, opts, echo) {
   say('  $ ' + cmd + ' ' + args.join(' '));
   if (DRY) return { status: 0, stdout: '', stderr: '' };
-  return spawnSync(cmd, args, Object.assign({ cwd: WORK, encoding: 'utf8' }, opts));
+  const r = spawnSync(cmd, args, Object.assign({ cwd: WORK, encoding: 'utf8' }, opts));
+  if (echo) {
+    const t = ((r.stdout || '') + (r.stderr || '')).trim();
+    if (t) console.log(t.split('\n').map((l) => '    ' + l).join('\n'));
+  }
+  return r;
 }
 function runLive(cmd, args) {
   say('  $ ' + cmd + ' ' + args.join(' '));
   if (DRY) return 0;
-  const r = spawnSync(cmd, args, { cwd: WORK, stdio: 'inherit', shell: process.platform === 'win32' });
+  // 注意：windows 下不要用 shell:true 拼参数（Node 会报 DEP0190），直接执行 .cmd
+  const r = spawnSync(cmd, args, { cwd: WORK, stdio: 'inherit' });
   return r.status;
 }
 
@@ -85,7 +91,7 @@ function npx() { return process.platform === 'win32' ? 'npx.cmd' : 'npx'; }
   if (proxyUp) ok('本地代理 7897 可用（Clash）'); else bad('本地 7897 没在监听，npm/Cloudflare 可能连不上');
 
   step('登录 Cloudflare（第一次会打开浏览器授权）');
-  const who = run(npx(), ['--yes', 'wrangler@latest', 'whoami']);
+  const who = run(npx(), ['--yes', 'wrangler@latest', 'whoami'], null, true);
   const loggedIn = !DRY && /You are logged in|associated with the email/i.test((who.stdout || '') + (who.stderr || ''));
   if (loggedIn) {
     ok('已登录');
@@ -99,7 +105,7 @@ function npx() { return process.platform === 'win32' ? 'npx.cmd' : 'npx'; }
   }
 
   step('部署（第一次会自动创建 Worker 和 Durable Object）');
-  const dep = run(npx(), ['--yes', 'wrangler@latest', 'deploy']);
+  const dep = run(npx(), ['--yes', 'wrangler@latest', 'deploy'], null, true);
   const text = (dep.stdout || '') + (dep.stderr || '');
   const m = text.match(/https:\/\/[a-z0-9.\-]+\.workers\.dev/i);
 
@@ -112,9 +118,11 @@ function npx() { return process.platform === 'win32' ? 'npx.cmd' : 'npx'; }
     say('   这个地址就是完整网站（页面 + 对战服务器），发给朋友即可。');
     say('   免费额度：每天 10 万次请求，不会像 Render 那样休眠。');
   } else {
-    say('❌ 部署没成功，把上面最后几行发我。常见原因：');
-    say('  · 提示 Durable Objects 需要付费方案 → 告诉我，我换成不依赖 DO 的方案');
-    say('  · 提示网络超时 → 先确认 Clash 开着，再重新双击');
-    say('  · 提示要选账号 → 在浏览器里选中你的账号后重试');
+    say('❌ 部署没成功。上面缩进的几行就是 wrangler 的原话，请整段发我。');
+    say('   常见原因对照：');
+    say('   · 需要付费方案 / Durable Objects not available → 我换成不依赖 DO 的方案');
+    say('   · fetch failed / 连接超时 → 先确认 Clash 开着，再重新双击');
+    say('   · Please select an account / more than one account → 在浏览器里选中账号后重试');
+    say('   · Invalid configuration / wrangler.toml → 直接发我，我改配置');
   }
 })().catch((e) => { console.error('脚本异常: ' + e.message); process.exit(1); });
