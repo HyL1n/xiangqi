@@ -36,8 +36,9 @@
       label: 'rgba(255,255,255,.38)',
       pieceShadow: 'rgba(0,0,0,.5)',
       piece: {
-        r: { top: '#e4564a', bottom: '#a5231a', ring: 'rgba(255,255,255,.32)', inner: null, glyph: '#fff' },
-        b: { top: '#43474e', bottom: '#16181b', ring: 'rgba(255,255,255,.24)', inner: null, glyph: '#fff' }
+        // face1=顶面亮部 face2=顶面暗部 side=圆柱侧面 wall=侧面阴影
+        r: { face1: '#ef6a58', face2: '#9d1b12', side: '#7d130c', wall: 'rgba(0,0,0,.45)', rim: 'rgba(0,0,0,.30)', glyph: '#fff', glyphShadow: 'rgba(70,6,2,.55)' },
+        b: { face1: '#5c626c', face2: '#191c21', side: '#101317', wall: 'rgba(0,0,0,.5)', rim: 'rgba(0,0,0,.35)', glyph: '#fff', glyphShadow: 'rgba(0,0,0,.6)' }
       }
     },
     wood: {
@@ -50,8 +51,8 @@
       label: 'rgba(88,58,26,.6)',
       pieceShadow: 'rgba(70,42,12,.26)',
       piece: {
-        r: { top: '#fffcf4', mid: '#f7e9ca', bottom: '#e2c691', ring: '#b3251f', inner: '#b3251f', glyph: '#ab241d' },
-        b: { top: '#fffcf4', mid: '#f7e9ca', bottom: '#e2c691', ring: '#2c2f36', inner: '#2c2f36', glyph: '#23262d' }
+        r: { face1: '#fffdf7', face2: '#efdcb6', side: '#c2a066', wall: 'rgba(120,80,30,.35)', rim: '#b3251f', glyph: '#ab241d', glyphShadow: 'rgba(255,255,255,.75)' },
+        b: { face1: '#fffdf7', face2: '#efdcb6', side: '#c2a066', wall: 'rgba(120,80,30,.35)', rim: '#2c2f36', glyph: '#23262d', glyphShadow: 'rgba(255,255,255,.75)' }
       }
     }
   };
@@ -367,35 +368,64 @@
     var side = X.sideOf(ch);
     var th = theme();
     var pal = th.piece[side];
+    var depth = r * 0.16;            // 棋子厚度（侧面高度）
+    var faceY = cy - depth * 0.2;    // 顶面比圆心略上移，视觉上像俯视一枚厚圆片
     c.save();
-    c.beginPath();
-    c.ellipse(cx + 1.5, cy + 3, r * 0.97, r * 0.9, 0, 0, Math.PI * 2);
-    c.fillStyle = th.pieceShadow;
-    c.fill();
 
-    var gr = c.createRadialGradient(cx - r * 0.35, cy - r * 0.42, r * 0.1, cx, cy, r * 1.05);
-    gr.addColorStop(0, pal.top);
-    gr.addColorStop(pal.inner ? 0.55 : 0.45, pal.mid || pal.top);
-    gr.addColorStop(1, pal.bottom);
-    c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2);
+    // 1) 落地阴影：几层逐渐变淡的椭圆模拟模糊
+    for (var i = 3; i >= 1; i--) {
+      c.beginPath();
+      c.ellipse(cx + r * 0.05 * i, cy + depth * 0.6 + r * 0.06 * i,
+        r * (0.98 + 0.05 * i), r * (0.86 + 0.05 * i), 0, 0, Math.PI * 2);
+      c.fillStyle = 'rgba(0,0,0,' + (0.10 + 0.04 * i) + ')';
+      c.fill();
+    }
+
+    // 2) 圆柱侧面（整体先画一个偏下的深色圆）
+    var sideGrad = c.createLinearGradient(cx - r, cy - r, cx + r * 0.4, cy + r);
+    sideGrad.addColorStop(0, pal.face2);
+    sideGrad.addColorStop(1, pal.side);
+    c.beginPath(); c.arc(cx, cy + depth * 0.5, r, 0, Math.PI * 2);
+    c.fillStyle = sideGrad; c.fill();
+
+    // 3) 侧面与顶面交界的暗环，让厚度看得出来
+    c.beginPath(); c.arc(cx, faceY + depth * 0.55, r * 0.995, 0, Math.PI * 2);
+    c.lineWidth = Math.max(1, depth * 0.9);
+    c.strokeStyle = pal.wall;
+    c.stroke();
+
+    // 4) 顶面：左上亮、右下暗的径向渐变
+    var gr = c.createRadialGradient(cx - r * 0.4, faceY - r * 0.48, r * 0.08, cx, faceY, r * 1.08);
+    gr.addColorStop(0, pal.face1);
+    gr.addColorStop(0.62, pal.face2);
+    gr.addColorStop(1, pal.side);
+    c.beginPath(); c.arc(cx, faceY, r * 0.985, 0, Math.PI * 2);
     c.fillStyle = gr; c.fill();
 
-    if (pal.ring) {
-      c.lineWidth = Math.max(1.2, r * (pal.inner ? 0.13 : 0.08));
-      c.strokeStyle = pal.ring;
-      c.stroke();
-    }
-    if (pal.inner) {
-      c.beginPath(); c.arc(cx, cy, r * 0.79, 0, Math.PI * 2);
-      c.lineWidth = Math.max(1, r * 0.055);
+    // 5) 顶面斜上方的高光（塑料圆片那种反光）
+    c.beginPath();
+    c.ellipse(cx - r * 0.34, faceY - r * 0.42, r * 0.52, r * 0.3, -0.6, 0, Math.PI * 2);
+    var hl = c.createLinearGradient(cx - r, faceY - r, cx, faceY);
+    hl.addColorStop(0, 'rgba(255,255,255,.30)');
+    hl.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = hl; c.fill();
+
+    // 6) 顶面边沿：木纹主题保留细圈，深色主题用一圈暗边
+    if (pal.rim) {
+      c.beginPath(); c.arc(cx, faceY, r * 0.965, 0, Math.PI * 2);
+      c.lineWidth = Math.max(1, r * 0.045);
+      c.strokeStyle = pal.rim;
       c.stroke();
     }
 
-    c.fillStyle = pal.glyph;
-    c.font = '700 ' + (r * 1.16) + 'px ' + pieceFont();
+    // 7) 字：先压一层暗影再写白字，做出刻上去的感觉
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText(boardName(ch), cx, cy + r * 0.05);
+    c.font = '700 ' + (r * 1.16) + 'px ' + pieceFont();
+    c.fillStyle = pal.glyphShadow;
+    c.fillText(boardName(ch), cx, faceY + r * 0.08 + Math.max(1, r * 0.045));
+    c.fillStyle = pal.glyph;
+    c.fillText(boardName(ch), cx, faceY + r * 0.05);
     c.restore();
   }
 
