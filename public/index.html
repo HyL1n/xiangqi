@@ -82,7 +82,7 @@
 <div class="overlay" id="lobby">
   <div class="lobbycard">
     <h2>象棋</h2>
-    <p class="sub">创建房间，把房间号（或邀请链接）发给朋友，就能在同一张棋盘上对局。</p>
+    <p class="sub">和朋友在浏览器里下一盘。</p>
 
     <div class="field">
       <label for="nameInput">你的名字</label>
@@ -102,33 +102,30 @@
 
     <button class="btn primary" id="btnCreate" style="width:100%;padding:12px">创建房间，我执红先行</button>
 
-    <div class="or">或加入朋友的房间</div>
-
-    <div class="joinrow">
-      <input id="codeInput" maxlength="8" placeholder="房间号" autocomplete="off">
-      <button class="btn" id="btnJoin">加入</button>
+    <div class="field" style="margin:14px 0 0">
+      <label for="codeInput">或者加入朋友的房间</label>
+      <div class="joinrow">
+        <input id="codeInput" maxlength="8" placeholder="房间号" autocomplete="off">
+        <button class="btn" id="btnJoin">加入</button>
+      </div>
     </div>
 
-    <div class="or">没有网络也行</div>
+    <div class="or">没有网络也能玩</div>
 
     <button class="btn ghost" id="btnLocal" style="width:100%">同一台设备上轮流下（本地对局）</button>
 
-    <div class="or">或者和电脑下一盘</div>
-
-    <div class="field" style="margin-bottom:0">
-      <div class="joinrow">
-        <label class="aiLead" for="aiLevel">选难度<span class="aiLeadArrow">→</span></label>
-        <select id="aiLevel" class="btn" title="电脑棋力" aria-label="电脑棋力（难度）">
-          <option value="easy">简单</option>
-          <option value="normal" selected>普通</option>
-          <option value="hard">较难</option>
-        </select>
-        <button class="btn primary" id="btnAI">和电脑对弈</button>
-      </div>
-      <p class="sub" style="margin:8px 0 0;font-size:12px">提示：<b>较难</b>是电脑最强的一档；选好后点「和电脑对弈」。</p>
+    <div class="joinrow" style="margin-top:8px">
+      <label for="aiLevel">难度</label>
+      <select id="aiLevel" class="btn" title="电脑棋力（难度）" aria-label="电脑棋力（难度）">
+        <option value="easy">简单</option>
+        <option value="normal" selected>普通</option>
+        <option value="hard">较难</option>
+      </select>
+      <button class="btn" id="btnAI">和电脑对弈</button>
     </div>
+    <p class="tiny"><b>较难</b>是电脑最强的一档。</p>
 
-    <p class="sub" id="lobbyHint" style="margin:16px 0 0;font-size:12px"></p>
+    <p class="sub tiny" id="lobbyHint"></p>
   </div>
 </div>
 

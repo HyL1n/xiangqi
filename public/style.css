@@ -390,14 +390,12 @@ select.btn option {
 /* 人机对战那一行：下拉按内容宽度，按钮把剩下的宽度撑满（不然右边空一大块，看着别扭） */
 #aiLevel { flex: 0 0 auto; }
 #btnAI { flex: 1 1 auto; }
-/* 标签跟下拉框排在同一行（原来悬在上面一行，跟下面的控件像是两回事） */
+/* 标签跟控件排在同一行时，安静一点就行（别再加箭头、亮色那些花活） */
 .joinrow > label { flex: 0 0 auto; align-self: center; font-size: 12px; color: var(--muted); white-space: nowrap; }
-/* 这句标签要起"指路"作用：亮一点、粗一点，再用金色箭头指到右边的下拉框 */
-.joinrow > label.aiLead {
-  display: flex; align-items: center; gap: 5px;
-  font-size: 13px; font-weight: 600; color: var(--text);
-}
-.aiLeadArrow { color: var(--gold); font-weight: 700; }
+/* 补充小字说明 */
+.tiny { margin: 6px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.tiny b { color: var(--text); font-weight: 600; }
+#lobbyHint { margin: 14px 0 0; }
 
 .linkbox {
   margin-top: 10px; display: flex; gap: 6px;
