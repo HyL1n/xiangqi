@@ -818,6 +818,21 @@
     return s;
   }
 
+  /*
+   * 棋盘朝向跟着自己的座位走：执黑就翻转，让自家棋子永远在下方。
+   * 换先（再来一局）后座位会互换，所以每次收到状态都要重算一次；
+   * 用户手动点过「翻转棋盘」就不再自动干预。
+   * 返回朝向是否变化（变化了就要重新摆放交叉点按钮）。
+   */
+  function autoFlipFor(you) {
+    if (S.userFlipped) return false;
+    if (you !== 'r' && you !== 'b') return false;   // 观战 / 本地对局不动
+    var want = (you === 'b');
+    if (want === S.flipped) return false;
+    S.flipped = want;
+    return true;
+  }
+
   function send(obj) {
     if (wsOpen()) S.ws.send(JSON.stringify(obj));
     else S.queue.push(obj);
@@ -903,8 +918,7 @@
         S.you = m.seat || null;
         S.token = m.token || S.token;
         if (S.token) { try { localStorage.setItem(LS_TOKEN + m.code, S.token); } catch (e) { } }
-        if (m.seat === 'b' && !S.userFlipped) S.flipped = true;
-        if (m.seat === 'r' && !S.userFlipped) S.flipped = false;
+        if (autoFlipFor(S.you)) placeGrid();
         history.replaceState(null, '', '?room=' + m.code);
         hideLobby();
         renderAll();
@@ -913,6 +927,7 @@
       case 'state':
         S.code = m.code;
         S.you = m.you;
+        if (autoFlipFor(S.you)) placeGrid();   // 再来一局会交换红黑，朝向要跟着换
         setView(m);
         renderAll();
         break;
