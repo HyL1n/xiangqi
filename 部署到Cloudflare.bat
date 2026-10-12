@@ -19,7 +19,7 @@ if errorlevel 1 (
 node "%~dp0scripts\deploy-cloudflare.js" %*
 
 echo.
-echo   ---- ????? %%USERPROFILE%%\xiangqi-cloudflare\deploy-cloudflare.log ----
+echo   ---- Result is also saved to %USERPROFILE%\xiangqi-cloudflare\deploy-cloudflare.log ----
 echo.
 echo   Press Enter to close this window...
 set /p XQ_DUMMY=
