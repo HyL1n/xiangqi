@@ -39,7 +39,8 @@ function run(cmd, args, opts, echo) {
   say('  $ ' + cmd + ' ' + args.join(' '));
   toLog('  $ ' + cmd + ' ' + args.join(' '));
   if (DRY) return { status: 0, stdout: '', stderr: '' };
-  const r = spawnSync(cmd, args, Object.assign({ cwd: WORK, encoding: 'utf8' }, opts));
+  const spec = wrap(cmd, args);
+  const r = spawnSync(spec.cmd, spec.args, Object.assign({ cwd: WORK, encoding: 'utf8' }, opts));
   if (echo) {
     const t = ansi(((r.stdout || '') + (r.stderr || '')).trim());
     if (t) {
@@ -48,6 +49,17 @@ function run(cmd, args, opts, echo) {
     }
   }
   return r;
+}
+
+/*
+ * 新版 Node 出于安全补丁不允许直接 spawn .cmd/.bat（会抛 EINVAL），
+ * 必须交给 cmd.exe。这里统一包一层，npx.cmd / npm.cmd 都能跑。
+ */
+function wrap(cmd, args) {
+  const isWin = process.platform === 'win32';
+  if (!isWin || !/\.(cmd|bat)$/i.test(cmd)) return { cmd, args };
+  const line = [cmd].concat(args).map((a) => (/[\s]/.test(a) ? '"' + a + '"' : a)).join(' ');
+  return { cmd: process.env.ComSpec || 'cmd.exe', args: ['/d', '/s', '/c', line] };
 }
 
 // wrangler 输出带颜色转义码，解析前先去掉
@@ -89,8 +101,8 @@ function whoamiLoggedIn() {
 function runLive(cmd, args) {
   say('  $ ' + cmd + ' ' + args.join(' '));
   if (DRY) return 0;
-  // 注意：windows 下不要用 shell:true 拼参数（Node 会报 DEP0190），直接执行 .cmd
-  const r = spawnSync(cmd, args, { cwd: WORK, stdio: 'inherit' });
+  const spec = wrap(cmd, args);
+  const r = spawnSync(spec.cmd, spec.args, { cwd: WORK, stdio: 'inherit' });
   return r.status;
 }
 
