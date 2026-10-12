@@ -1219,12 +1219,29 @@
     } else {
       $('lobbyHint').textContent = '提示：同一 Wi-Fi 下，朋友用你电脑的局域网地址打开即可；也可以用内网穿透让别人从外网加入。';
     }
-    // 静态托管（Netlify / Vercel / Pages 等 HTTPS 站点）没配服务器时，明确说清楚
+    /*
+     * 只在"确实是静态托管"时才提示。注意别只看 https ——
+     * Cloudflare Workers 那种整站部署也是 https，页面和 /ws 在同一个域名下。
+     * 所以实际去问一下 /health：有对局服务器就不提示。
+     */
     var cfg = '';
     try { cfg = (window.XQ_SERVER || '').trim(); } catch (e) { }
     if (location.protocol === 'https:' && !cfg) {
-      $('lobbyHint').innerHTML += '<br><br><b>注意：</b>当前页面是静态托管，没有对局服务器，联机模式不可用；'
-        + '要么在 <code>config.js</code> 里把 <code>XQ_SERVER</code> 指向你的对局服务器，要么先用下面的“本地对局”。';
+      var warn = function () {
+        $('lobbyHint').innerHTML += '<br><br><b>注意：</b>当前页面是静态托管，没有对局服务器，联机模式不可用；'
+          + '要么在 <code>config.js</code> 里把 <code>XQ_SERVER</code> 指向你的对局服务器，要么先用下面的“本地对局”。';
+      };
+      try {
+        fetch('/health', { cache: 'no-store' })
+          .then(function (r) { return r.text().then(function (t) { return { status: r.status, body: t }; }); })
+          .then(function (res) {
+            var ok = false;
+            try { ok = JSON.parse(res.body).ok === true; } catch (e) { ok = false; }
+            if (!ok) warn();          // 拿到了响应但不是对局服务器 → 确实是静态托管
+          }, function () {
+            // 请求本身失败（代理/拦截/离线）→ 不下结论，交给连接时的探测提示
+          });
+      } catch (e) { /* 同上 */ }
     }
     renderAll();
   }
