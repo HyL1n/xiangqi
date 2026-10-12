@@ -65,15 +65,20 @@
    * 字重固定 500：避免 canvas 对中文字体做合成加粗（糊成一团，就是"字体奇怪"的来源）。
    */
   var FONTS = {
-    kai: { label: '楷体', css: 'KaiTi, "Kaiti SC", STKaiti, 楷体, serif' },
-    song: { label: '宋体', css: '"Songti SC", STSong, SimSun, 宋体, serif' },
-    hei: { label: '黑体', css: 'SimHei, 黑体, "Microsoft YaHei", "PingFang SC", sans-serif' },
-    yuan: { label: '幼圆', css: 'YouYuan, 幼圆, "Yuanti SC", "PingFang SC", sans-serif' },
-    li: { label: '隶书', css: 'LiSu, 隶书, STLibian, "Yuanti SC", serif' }
+    // bold = 描边加粗量（占棋子半径的比例）。楷体笔画细给得多，黑体/隶书本来就粗给得少。
+    kai: { label: '楷体', bold: 0.06, css: 'KaiTi, "Kaiti SC", STKaiti, 楷体, serif' },
+    song: { label: '宋体', bold: 0.035, css: '"Songti SC", STSong, SimSun, 宋体, serif' },
+    hei: { label: '黑体', bold: 0.012, css: 'SimHei, 黑体, "Microsoft YaHei", "PingFang SC", sans-serif' },
+    yuan: { label: '幼圆', bold: 0.035, css: 'YouYuan, 幼圆, "Yuanti SC", "PingFang SC", sans-serif' },
+    li: { label: '隶书', bold: 0.015, css: 'LiSu, 隶书, STLibian, "Yuanti SC", serif' }
   };
   function pieceFont() {
     var f = FONTS[S.font];
     return (f ? f.css : FONTS.kai.css);
+  }
+  function pieceBold() {
+    var f = FONTS[S.font] || FONTS.kai;
+    return f.bold || 0;
   }
 
   function boardName(ch) {
@@ -476,10 +481,20 @@
     } else {
       c.textBaseline = 'middle';
     }
-    c.fillStyle = pal.glyphShadow;
-    c.fillText(glyph, gx, gy + Math.max(1, r * 0.045));
-    c.fillStyle = pal.glyph;
-    c.fillText(glyph, gx, gy);
+    // 先描边再填充：描边加粗比 canvas 的合成加粗均匀得多（合成加粗会把笔画糊在一起）
+    var bw = pieceBold() * r;
+    var drawInk = function (style, y) {
+      c.fillStyle = style;
+      c.fillText(glyph, gx, y);
+      if (bw > 0.4) {
+        c.lineWidth = bw;
+        c.lineJoin = 'round';
+        c.strokeStyle = style;
+        c.strokeText(glyph, gx, y);
+      }
+    };
+    drawInk(pal.glyphShadow, gy + Math.max(1, r * 0.045));
+    drawInk(pal.glyph, gy);
     c.restore();
   }
 
