@@ -41,13 +41,50 @@ function run(cmd, args, opts, echo) {
   if (DRY) return { status: 0, stdout: '', stderr: '' };
   const r = spawnSync(cmd, args, Object.assign({ cwd: WORK, encoding: 'utf8' }, opts));
   if (echo) {
-    const t = ((r.stdout || '') + (r.stderr || '')).trim();
+    const t = ansi(((r.stdout || '') + (r.stderr || '')).trim());
     if (t) {
       console.log(t.split('\n').map((l) => '    ' + l).join('\n'));
       toLog(t);
     }
   }
   return r;
+}
+
+// wrangler 输出带颜色转义码，解析前先去掉
+function ansi(s) {
+  return String(s == null ? '' : s).replace(/\u001b\[[0-9;]*[A-Za-z]/g, '');
+}
+
+// 登录凭据的实际位置（wrangler 4 在 Windows 下放在 Roaming\xdg.config 里）
+function tokenPaths() {
+  const home = os.homedir();
+  const roaming = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+  const local = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+  return [
+    path.join(home, '.wrangler', 'config', 'default.toml'),
+    path.join(roaming, 'xdg.config', '.wrangler', 'config', 'default.toml'),
+    path.join(local, '.wrangler', 'config', 'default.toml'),
+    path.join(home, '.config', '.wrangler', 'config', 'default.toml'),
+    path.join(WORK, '.wrangler', 'config', 'default.toml')
+  ];
+}
+function hasToken() {
+  return tokenFound() !== '';
+}
+function tokenFound() {
+  for (const p of tokenPaths()) {
+    try { if (fs.existsSync(p)) return p; } catch (e) { }
+  }
+  return '';
+}
+
+// 两个信号一起判断：wrangler whoami 的退出码/输出 + 凭据文件是否存在
+function whoamiLoggedIn() {
+  const r = run(npx(), ['--yes', 'wrangler@latest', 'whoami'], null, false);
+  if (r.status !== 0) return hasToken();
+  const t = ansi((r.stdout || '') + (r.stderr || ''));
+  if (/not logged in|not authenticated|You are not logged in/i.test(t)) return false;
+  return /logged in|associated with the email|Account Name|Account ID/i.test(t) || hasToken();
 }
 function runLive(cmd, args) {
   say('  $ ' + cmd + ' ' + args.join(' '));
@@ -105,22 +142,23 @@ function npx() { return process.platform === 'win32' ? 'npx.cmd' : 'npx'; }
   if (proxyUp) ok('本地代理 7897 可用（Clash）'); else bad('本地 7897 没在监听，npm/Cloudflare 可能连不上');
 
   step('登录 Cloudflare（第一次会打开浏览器授权）');
-  const who = run(npx(), ['--yes', 'wrangler@latest', 'whoami'], null, true);
-  const loggedIn = !DRY && /You are logged in|associated with the email/i.test((who.stdout || '') + (who.stderr || ''));
-  if (loggedIn) {
-    ok('已登录');
+  if (DRY ? false : whoamiLoggedIn()) {
+    const tp = tokenFound();
+    ok('已登录，跳过浏览器授权' + (tp ? '（凭据文件 ' + tp + '）' : ''));
   } else {
-    bad('还没登录，接下来会打开浏览器');
+    bad('还没登录，接下来会打开浏览器，请在浏览器里点 Allow');
     const st = runLive(npx(), ['--yes', 'wrangler@latest', 'login']);
-    if (st !== 0) {
-      bad('登录没有完成，重新双击本脚本即可继续');
+    if (!DRY && !whoamiLoggedIn()) {
+      bad('登录好像没完成。如果是「登录成功」但这里报错，说明凭据文件位置变了，把这段发我。');
+      if (st !== 0) bad('（login 命令退出码 ' + st + '：如果上面有网络/下载相关的报错，通常是代理或 npm 的问题）');
       process.exit(1);
     }
+    ok('登录完成');
   }
 
   step('部署（第一次会自动创建 Worker 和 Durable Object）');
   const dep = run(npx(), ['--yes', 'wrangler@latest', 'deploy'], null, true);
-  const text = (dep.stdout || '') + (dep.stderr || '');
+  const text = ansi((dep.stdout || '') + (dep.stderr || ''));
   const m = text.match(/https:\/\/[a-z0-9.\-]+\.workers\.dev/i);
 
   console.log('');
