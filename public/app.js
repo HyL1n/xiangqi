@@ -14,6 +14,54 @@
   var CN_FILE = ['九', '八', '七', '六', '五', '四', '三', '二', '一'];
   var NO_SERVER_MSG = '这个地址上没有对局服务器（静态托管只发页面）：把 config.js 的 XQ_SERVER 指向你的服务器，或先用“本地对局”';
 
+  // 棋子上的字（用繁体，跟参考图一致；记谱仍然用简体，不受影响）
+  var BOARD_GLYPH = {
+    r: { K: '帥', A: '仕', B: '相', N: '馬', R: '車', C: '炮', P: '兵' },
+    b: { K: '將', A: '士', B: '象', N: '馬', R: '車', C: '砲', P: '卒' }
+  };
+
+  /*
+   * 两套外观：
+   *   dark = 深色盘面 + 实心棋子 + 白色繁体字（默认，就是参考图那种）
+   *   wood = 原来的木纹盘面 + 象牙色棋子 + 红黑字
+   */
+  var THEMES = {
+    dark: {
+      font: '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif',
+      bg1: '#2b2e34', bg2: '#191b1f',
+      grain: 'rgba(255,255,255,.018)',
+      line: 'rgba(232,238,245,.55)',
+      frame: 'rgba(255,255,255,.72)',
+      river: 'rgba(255,255,255,.22)',
+      label: 'rgba(255,255,255,.38)',
+      pieceShadow: 'rgba(0,0,0,.5)',
+      piece: {
+        r: { top: '#e4564a', bottom: '#a5231a', ring: 'rgba(255,255,255,.32)', inner: null, glyph: '#fff' },
+        b: { top: '#43474e', bottom: '#16181b', ring: 'rgba(255,255,255,.24)', inner: null, glyph: '#fff' }
+      }
+    },
+    wood: {
+      font: 'KaiTi, "Kaiti SC", STKaiti, 楷体, "Songti SC", serif',
+      bg1: '#f5dfb4', bg2: '#e5c390',
+      grain: 'rgba(107,67,24,.05)',
+      line: 'rgba(72,46,18,.78)',
+      frame: 'rgba(72,46,18,.85)',
+      river: 'rgba(88,58,26,.62)',
+      label: 'rgba(88,58,26,.6)',
+      pieceShadow: 'rgba(70,42,12,.26)',
+      piece: {
+        r: { top: '#fffcf4', mid: '#f7e9ca', bottom: '#e2c691', ring: '#b3251f', inner: '#b3251f', glyph: '#ab241d' },
+        b: { top: '#fffcf4', mid: '#f7e9ca', bottom: '#e2c691', ring: '#2c2f36', inner: '#2c2f36', glyph: '#23262d' }
+      }
+    }
+  };
+
+  function theme() { return THEMES[S.theme] || THEMES.dark; }
+  function boardName(ch) {
+    var g = BOARD_GLYPH[X.sideOf(ch)];
+    return (g && g[X.typeOf(ch)]) || ch;
+  }
+
   var S = {
     mode: null,            // 'online' | 'local'
     name: '',
@@ -29,6 +77,7 @@
     legalKey: '',
     legalCache: [],
     sound: true,
+    theme: 'dark',
     ws: null,
     serverCfg: null,
     probed: false,
@@ -303,54 +352,62 @@
   function pieceChar(ch) { return X.NAME[X.typeOf(ch)][X.sideOf(ch)]; }
 
   function drawPiece(c, cx, cy, ch, scale) {
-    var r = geo.cell * 0.44 * (scale || 1);
+    var r = geo.cell * 0.462 * (scale || 1);
     var side = X.sideOf(ch);
+    var th = theme();
+    var pal = th.piece[side];
     c.save();
     c.beginPath();
     c.ellipse(cx + 1.5, cy + 3, r * 0.97, r * 0.9, 0, 0, Math.PI * 2);
-    c.fillStyle = 'rgba(70,42,12,.26)';
+    c.fillStyle = th.pieceShadow;
     c.fill();
 
     var gr = c.createRadialGradient(cx - r * 0.35, cy - r * 0.42, r * 0.1, cx, cy, r * 1.05);
-    gr.addColorStop(0, '#fffcf4');
-    gr.addColorStop(0.55, '#f7e9ca');
-    gr.addColorStop(1, '#e2c691');
+    gr.addColorStop(0, pal.top);
+    gr.addColorStop(pal.inner ? 0.55 : 0.45, pal.mid || pal.top);
+    gr.addColorStop(1, pal.bottom);
     c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2);
     c.fillStyle = gr; c.fill();
 
-    c.lineWidth = Math.max(1.2, r * 0.13);
-    c.strokeStyle = side === 'r' ? '#b3251f' : '#2c2f36';
-    c.stroke();
-    c.beginPath(); c.arc(cx, cy, r * 0.79, 0, Math.PI * 2);
-    c.lineWidth = Math.max(1, r * 0.055);
-    c.stroke();
+    if (pal.ring) {
+      c.lineWidth = Math.max(1.2, r * (pal.inner ? 0.13 : 0.08));
+      c.strokeStyle = pal.ring;
+      c.stroke();
+    }
+    if (pal.inner) {
+      c.beginPath(); c.arc(cx, cy, r * 0.79, 0, Math.PI * 2);
+      c.lineWidth = Math.max(1, r * 0.055);
+      c.stroke();
+    }
 
-    c.fillStyle = side === 'r' ? '#ab241d' : '#23262d';
-    c.font = '700 ' + (r * 1.22) + 'px KaiTi, "Kaiti SC", STKaiti, 楷体, "Songti SC", serif';
+    c.fillStyle = pal.glyph;
+    c.font = '700 ' + (r * 1.16) + 'px ' + th.font;
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText(pieceChar(ch), cx, cy + r * 0.06);
+    c.fillText(boardName(ch), cx, cy + r * 0.05);
     c.restore();
   }
 
   function drawBoard(c) {
     var m = geo.margin, cell = geo.cell;
+    var th = theme();
     var px = function (i) { return m + i * cell; };
     var py = function (j) { return m + j * cell; };
 
-    // 木纹底
+    // 盘面底色
     var bg = c.createLinearGradient(0, 0, geo.W, geo.H);
-    bg.addColorStop(0, '#f5dfb4');
-    bg.addColorStop(0.45, '#efd4a3');
-    bg.addColorStop(1, '#e5c390');
+    bg.addColorStop(0, th.bg1);
+    bg.addColorStop(0.45, th.bg1);
+    bg.addColorStop(1, th.bg2);
     roundRect(c, 0, 0, geo.W, geo.H, Math.round(cell * 0.3));
     c.fillStyle = bg; c.fill();
 
     c.save();
     roundRect(c, 0, 0, geo.W, geo.H, Math.round(cell * 0.3));
     c.clip();
-    c.globalAlpha = 0.05;
-    c.strokeStyle = '#6b4318';
+    // 木纹只属于 wood 主题；深色盘面用极淡的斜向纹理
+    c.globalAlpha = 1;
+    c.strokeStyle = th.grain;
     c.lineWidth = cell * 0.05;
     for (var i = 0; i < 22; i++) {
       var y = (i + 0.5) * geo.H / 22 + Math.sin(i * 1.7) * cell * 0.35;
@@ -361,7 +418,7 @@
     }
     c.restore();
 
-    var ink = 'rgba(72,46,18,.78)';
+    var ink = th.line;
     c.strokeStyle = ink;
     c.lineCap = 'round';
     c.lineWidth = Math.max(1, cell * 0.017);
@@ -378,16 +435,19 @@
     // 外框
     c.lineWidth = Math.max(1.6, cell * 0.05);
     var pad = cell * 0.2;
+    c.strokeStyle = th.frame;
     c.strokeRect(px(0) - pad, py(0) - pad, 8 * cell + 2 * pad, 9 * cell + 2 * pad);
 
     // 九宫
     c.lineWidth = Math.max(1, cell * 0.017);
+    c.strokeStyle = ink;
     line(c, px(3), py(0), px(5), py(2));
     line(c, px(5), py(0), px(3), py(2));
     line(c, px(3), py(7), px(5), py(9));
     line(c, px(5), py(7), px(3), py(9));
 
     // 兵炮位记号
+    c.strokeStyle = ink;
     var g = cell * 0.08, len = cell * 0.16;
     [[1, 2], [7, 2], [1, 7], [7, 7]].forEach(function (p) { drawMarker(c, px(p[0]), py(p[1]), g, len); });
     [[0, 3], [2, 3], [4, 3], [6, 3], [8, 3], [0, 6], [2, 6], [4, 6], [6, 6], [8, 6]].forEach(function (p) {
@@ -396,8 +456,8 @@
 
     // 楚河汉界
     c.save();
-    c.fillStyle = 'rgba(88,58,26,.62)';
-    c.font = (cell * 0.52) + 'px KaiTi, "Kaiti SC", STKaiti, 楷体, "Songti SC", serif';
+    c.fillStyle = th.river;
+    c.font = (cell * 0.58) + 'px ' + th.font;
     c.textAlign = 'center'; c.textBaseline = 'middle';
     var ry = py(4) + cell * 0.5;
     c.fillText('楚  河', px(2), ry);
@@ -406,7 +466,7 @@
 
     // 路数标记：红方汉字（下），黑方数字（上）
     c.save();
-    c.fillStyle = 'rgba(88,58,26,.6)';
+    c.fillStyle = th.label;
     c.font = (cell * 0.34) + 'px system-ui, sans-serif';
     c.textAlign = 'center'; c.textBaseline = 'middle';
     for (var k = 0; k < 9; k++) {
@@ -1317,6 +1377,19 @@
     S.dirty = true;
   });
 
+  // 棋盘外观：深色（默认，参考图那种）⇄ 木纹
+  $('btnTheme').addEventListener('click', function () {
+    setTheme(S.theme === 'dark' ? 'wood' : 'dark');
+  });
+
+  function setTheme(name) {
+    S.theme = (name === 'wood') ? 'wood' : 'dark';
+    try { localStorage.setItem('xq.theme', S.theme); } catch (e) { }
+    $('btnTheme').textContent = S.theme === 'dark' ? '深色' : '木纹';
+    renderBg();
+    S.dirty = true;
+  }
+
   $('btnSound').addEventListener('click', function () {
     S.sound = !S.sound;
     $('btnSound').textContent = S.sound ? '🔊' : '🔈';
@@ -1370,6 +1443,10 @@
   /* ---------------- 启动 ---------------- */
 
   function init() {
+    var savedTheme = '';
+    try { savedTheme = localStorage.getItem('xq.theme') || ''; } catch (e) { }
+    S.theme = (savedTheme === 'wood') ? 'wood' : 'dark';      // 默认深色
+    $('btnTheme').textContent = S.theme === 'dark' ? '深色' : '木纹';
     buildGrid();
     layout();
     focusCursor(0, false);
