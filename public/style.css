@@ -20,6 +20,9 @@ html, body {
   margin: 0;
 }
 
+/* 让原生控件（下拉框、滚动条）跟着走深色，否则字体下拉拉出来是黑底黑字看不清 */
+html { color-scheme: dark; }
+
 body {
   background:
     radial-gradient(1000px 600px at 15% -10%, #232a37 0%, transparent 60%),
@@ -177,8 +180,13 @@ select.btn {
   -webkit-appearance: none;
   padding-right: 10px;
   cursor: pointer;
+  color: var(--text);
+  background: var(--card-2);
 }
-select.btn option { background: #20252f; color: var(--text); }
+select.btn option {
+  background: #20252f;
+  color: #e9edf4;
+}
 
 .bar b { color: var(--text); }
 .bar .warn { color: var(--red); font-weight: 600; }

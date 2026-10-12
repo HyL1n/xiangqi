@@ -251,7 +251,19 @@ export function handleMessage(room, conn, msg, env) {
           room.announced = true;
           env.send(conn, sysChat(room, '双方就位，红先行', 'info'));
         }
-        if (!room.turnStart && room.status === 'playing') room.turnStart = now;
+        /*
+         * 计时只在"两边都坐好"之后开始：
+         * 一个人干等的时候不该掉时间；对手进来的瞬间把双方时钟重置回满。
+         */
+        if (room.seats.r && room.seats.b) {
+          if (!room.clockStarted) {
+            room.clockStarted = true;
+            room.clocks = { r: room.timeBase, b: room.timeBase };
+            room.turnStart = room.timeBase ? now : 0;
+          }
+        } else {
+          room.turnStart = 0;
+        }
       } else {
         conn.seat = null;
         room.spectators = Math.max(1, room.spectators + 1);

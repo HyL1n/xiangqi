@@ -175,6 +175,24 @@ console.log('\n[7b] 建房时带来的用时（Cloudflare 版曾经漏掉）');
   check('给出了超时唤醒时刻', nextDeadline(s.room, s.clock) > s.clock);
 }
 
+console.log('\n[7c] 对手没进房之前不该走表');
+{
+  const s = new Sim(0);
+  const solo = s.add('小明');
+  s.send(solo, { t: 'create', code: 'TEST01', name: '小明', timeBase: 10 });
+  s.tick(30000);                       // 干等 30 秒
+  s.sync();
+  check('一个人等的时候时钟不动', solo.state.clocks.r === 600000 && !s.room.turnStart, {
+    clocks: solo.state.clocks, turnStart: s.room.turnStart
+  });
+  check('等待时也不排超时唤醒', nextDeadline(s.room, s.clock) === 0);
+  const mate = s.join('小红');
+  check('对手入座后双方时钟满血', s.room.clocks.r === 600000 && s.room.clocks.b === 600000, s.room.clocks);
+  check('对手入座后才开始计时', !!s.room.turnStart && mate.state.clocks.r === 600000);
+  s.tick(4000);
+  check('之后正常走表', Math.abs(clockNow(s.room, 'r', s.clock) - 596000) < 5, clockNow(s.room, 'r', s.clock));
+}
+
 console.log('\n[8] 断线重连与座位接管');
 {
   const s = new Sim(0);

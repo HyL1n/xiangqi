@@ -421,6 +421,16 @@ function onMessage(conn, buf) {
       if (room.seats.r && room.seats.b && room.game.moves.length === 0) {
         sysChat(room, '双方就位，红先行', 'info');
       }
+      // 计时只在双方都坐好后开始（一个人等的时候不掉时间），对手进来时双方时钟重置
+      if (room.seats.r && room.seats.b) {
+        if (!room.clockStarted) {
+          room.clockStarted = true;
+          room.clocks = { r: room.timeBase, b: room.timeBase };
+          room.turnStart = room.timeBase ? Date.now() : null;
+        }
+      } else {
+        room.turnStart = null;
+      }
     } else {
       room.spectators.add(conn);
       conn.seat = null;

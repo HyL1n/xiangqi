@@ -66,11 +66,11 @@
    */
   var FONTS = {
     // bold = 描边加粗量（占棋子半径的比例）。楷体笔画细给得多，黑体/隶书本来就粗给得少。
-    kai: { label: '楷体', bold: 0.06, css: 'KaiTi, "Kaiti SC", STKaiti, 楷体, serif' },
-    song: { label: '宋体', bold: 0.035, css: '"Songti SC", STSong, SimSun, 宋体, serif' },
-    hei: { label: '黑体', bold: 0.012, css: 'SimHei, 黑体, "Microsoft YaHei", "PingFang SC", sans-serif' },
-    yuan: { label: '幼圆', bold: 0.035, css: 'YouYuan, 幼圆, "Yuanti SC", "PingFang SC", sans-serif' },
-    li: { label: '隶书', bold: 0.015, css: 'LiSu, 隶书, STLibian, "Yuanti SC", serif' }
+    kai: { label: '楷体', bold: 0.032, css: 'KaiTi, "Kaiti SC", STKaiti, 楷体, serif' },
+    song: { label: '宋体', bold: 0.022, css: '"Songti SC", STSong, SimSun, 宋体, serif' },
+    hei: { label: '黑体', bold: 0.008, css: 'SimHei, 黑体, "Microsoft YaHei", "PingFang SC", sans-serif' },
+    yuan: { label: '幼圆', bold: 0.022, css: 'YouYuan, 幼圆, "Yuanti SC", "PingFang SC", sans-serif' },
+    li: { label: '隶书', bold: 0.01, css: 'LiSu, 隶书, STLibian, "Yuanti SC", serif' }
   };
   function pieceFont() {
     var f = FONTS[S.font];
@@ -162,7 +162,8 @@
     var b = S.clockBase;
     if (!b) return v.clocks;
     var out = { r: b.clocks.r, b: b.clocks.b };
-    if (b.status === 'playing' && b.turn) {
+    // started = 双方都已入座；对手还没进来时不走表
+    if (b.status === 'playing' && b.turn && b.started !== false) {
       var left = out[b.turn] - (performance.now() - b.at);
       out[b.turn] = left > 0 ? left : 0;
     }
@@ -725,7 +726,13 @@
     S.view = v;
     // 时钟：服务端只给"某个时刻的剩余量"，之后由前端自己走表
     if (v && v.timeBase) {
-      S.clockBase = { clocks: { r: v.clocks.r, b: v.clocks.b }, at: performance.now(), turn: v.turn, status: v.status };
+      S.clockBase = {
+        clocks: { r: v.clocks.r, b: v.clocks.b },
+        at: performance.now(),
+        turn: v.turn,
+        status: v.status,
+        started: v.started
+      };
     } else {
       S.clockBase = null;
     }
@@ -1220,7 +1227,13 @@
       case 'clocks':
         if (S.view) {
           S.view.clocks = { r: m.r, b: m.b };
-          S.clockBase = { clocks: { r: m.r, b: m.b }, at: performance.now(), turn: S.view.turn, status: S.view.status };
+          S.clockBase = {
+            clocks: { r: m.r, b: m.b },
+            at: performance.now(),
+            turn: S.view.turn,
+            status: S.view.status,
+            started: S.view.started
+          };
           renderPlayers();
         }
         break;
