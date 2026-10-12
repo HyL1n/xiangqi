@@ -24,17 +24,28 @@ const DRY = process.argv.includes('--dry-run');
 const SKIP = new Set(['node_modules', '.git', '.wrangler', 'work']);
 
 function say(t) { console.log(t); }
-function step(t) { console.log('\n▶ ' + t); }
-function ok(t) { console.log('  ✓ ' + t); }
-function bad(t) { console.log('  ✗ ' + t); }
+
+// 完整输出同时写进日志文件，方便把失败原因贴给我（或我直接去读）
+let LOG_PATH = '';
+function toLog(line) {
+  if (!LOG_PATH || DRY) return;
+  try { fs.appendFileSync(LOG_PATH, line + '\n'); } catch (e) { }
+}
+function step(t) { say('\n▶ ' + t); toLog('\n▶ ' + t); }
+function ok(t) { say('  ✓ ' + t); toLog('  ✓ ' + t); }
+function bad(t) { say('  ✗ ' + t); toLog('  ✗ ' + t); }
 
 function run(cmd, args, opts, echo) {
   say('  $ ' + cmd + ' ' + args.join(' '));
+  toLog('  $ ' + cmd + ' ' + args.join(' '));
   if (DRY) return { status: 0, stdout: '', stderr: '' };
   const r = spawnSync(cmd, args, Object.assign({ cwd: WORK, encoding: 'utf8' }, opts));
   if (echo) {
     const t = ((r.stdout || '') + (r.stderr || '')).trim();
-    if (t) console.log(t.split('\n').map((l) => '    ' + l).join('\n'));
+    if (t) {
+      console.log(t.split('\n').map((l) => '    ' + l).join('\n'));
+      toLog(t);
+    }
   }
   return r;
 }
@@ -86,6 +97,9 @@ function npx() { return process.platform === 'win32' ? 'npx.cmd' : 'npx'; }
     }
   }
 
+  LOG_PATH = path.join(WORK, 'deploy-cloudflare.log');
+  try { if (!DRY) fs.writeFileSync(LOG_PATH, '部署日志 ' + new Date().toISOString() + '\n'); } catch (e) { LOG_PATH = ''; }
+
   step('检查代理');
   const proxyUp = await portOpen(7897);
   if (proxyUp) ok('本地代理 7897 可用（Clash）'); else bad('本地 7897 没在监听，npm/Cloudflare 可能连不上');
@@ -119,6 +133,7 @@ function npx() { return process.platform === 'win32' ? 'npx.cmd' : 'npx'; }
     say('   免费额度：每天 10 万次请求，不会像 Render 那样休眠。');
   } else {
     say('❌ 部署没成功。上面缩进的几行就是 wrangler 的原话，请整段发我。');
+    if (LOG_PATH) say('   完整日志已保存到: ' + LOG_PATH);
     say('   常见原因对照：');
     say('   · 需要付费方案 / Durable Objects not available → 我换成不依赖 DO 的方案');
     say('   · fetch failed / 连接超时 → 先确认 Clash 开着，再重新双击');
