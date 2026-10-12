@@ -273,11 +273,19 @@
     // 上限放宽一点：宽屏上棋盘能跟着变大，不至于两边空一大片
     var cell = Math.min(availW / 9.56, availH / 10.56, 120);
     cell = Math.max(20, Math.floor(cell));
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    /*
+     * 尺寸没变就直接返回：renderAll() 每次都会调过来（不这么干的话，
+     * 人机对战/本地对局那排按钮一出现，棋盘区可用高度变小、画布却还是旧的，
+     * 底下一排棋子就会压到状态栏上）。这里只在真的需要时重画。
+     */
+    if (geo.ready && cell === geo.cell && dpr === geo.dpr) return;
+    geo.ready = true;
     geo.cell = cell;
     geo.margin = Math.round(cell * 0.78);
     geo.W = 8 * cell + 2 * geo.margin;
     geo.H = 9 * cell + 2 * geo.margin;
-    geo.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    geo.dpr = dpr;
     canvas.style.width = geo.W + 'px';
     canvas.style.height = geo.H + 'px';
     canvas.width = Math.round(geo.W * geo.dpr);
@@ -1020,13 +1028,11 @@
     var box = $('actions');
     if (!v) { box.innerHTML = ''; return; }
     if (S.mode === 'ai') {
-      box.classList.add('hidden');
-      var ab = $('localActions');
-      ab.classList.remove('hidden');
+      box.classList.remove('hidden');
       var opts = ['easy', 'normal', 'hard'].map(function (lv) {
         return '<option value="' + lv + '"' + (S.aiLevel === lv ? ' selected' : '') + '>' + levelName(lv) + '</option>';
       }).join('');
-      ab.innerHTML = S.confirm === 'reset'
+      box.innerHTML = S.confirm === 'reset'
         ? '<button class="btn primary" data-act="reset-yes" style="grid-column:1/-1">确定重新开始（交换先手）</button>'
           + '<button class="btn" data-act="cancel" style="grid-column:1/-1">取消</button>'
         : '<button class="btn" data-act="ai-undo">悔棋</button>'
@@ -1035,15 +1041,12 @@
       return;
     }
     if (S.mode === 'local') {
-      box.classList.add('hidden');
-      var lb = $('localActions');
-      lb.classList.remove('hidden');
-      lb.innerHTML = S.confirm === 'reset'
+      box.classList.remove('hidden');
+      box.innerHTML = S.confirm === 'reset'
         ? '<button class="btn primary" data-act="reset-yes">确定重新开始</button><button class="btn" data-act="cancel">取消</button>'
         : '<button class="btn" data-act="local-undo">悔棋</button><button class="btn" data-act="reset">重新开始</button>';
       return;
     }
-    $('localActions').classList.add('hidden');
     box.classList.remove('hidden');
     var playing = v.status === 'playing';
     var seated = !!v.you;
@@ -1155,6 +1158,7 @@
     renderModal();
     syncGrid();
     if (S.view) renderChat(S.view.chat);
+    layout();          // 侧栏按钮换了一批（比如进人机对战）可能改变棋盘可用高度，重新适配一次
     S.dirty = true;
   }
 
@@ -1488,7 +1492,6 @@
     S.chats = [];
     $('chatlog').innerHTML = '';
     $('chatCard').classList.remove('hidden');
-    $('localActions').classList.add('hidden');
     $('linkBox').classList.add('hidden');
     history.replaceState(null, '', location.pathname);
     setView(null);
@@ -1618,9 +1621,8 @@
     else send({ t: act });
   }
   $('actions').addEventListener('click', onActionClick);
-  $('localActions').addEventListener('click', onActionClick);
   // 人机对战的难度下拉（容器是动态重建的，所以用委托的 change 事件）
-  $('localActions').addEventListener('change', function (e) {
+  $('actions').addEventListener('change', function (e) {
     if (e.target && e.target.id === 'aiLevel2') {
       S.aiLevel = e.target.value;
       toast('电脑棋力已切到「' + levelName(S.aiLevel) + '」', 'ok');
