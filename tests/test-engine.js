@@ -112,8 +112,8 @@ console.log('\n[5] 三档难度都能走、且难度越高节点越多');
   });
   check('简单档能走', res.easy.ok, res.easy);
   check('普通档能走', res.normal.ok, res.normal);
-  check('较难档能走', res.hard.ok, res.hard);
-  check('较难档搜索量 >= 简单档', res.hard.nodes >= res.easy.nodes, res);
+  check('困难档能走', res.hard.ok, res.hard);
+  check('困难档搜索量 >= 简单档', res.hard.nodes >= res.easy.nodes, res);
   console.log('    ' + JSON.stringify(res));
 }
 

@@ -804,7 +804,7 @@
   }
 
   function levelName(lv) {
-    return { easy: '简单', normal: '普通', hard: '较难' }[lv] || '普通';
+    return { easy: '简单', normal: '普通', hard: '困难' }[lv] || '普通';
   }
 
   /* ---------------- 人机对战 ---------------- */
