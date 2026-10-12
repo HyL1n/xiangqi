@@ -115,6 +115,17 @@
 
     <button class="btn ghost" id="btnLocal" style="width:100%">同一台设备上轮流下（本地对局）</button>
 
+    <div class="or">或者和电脑下一盘</div>
+
+    <div class="joinrow">
+      <select id="aiLevel" class="btn" title="电脑棋力">
+        <option value="easy">简单</option>
+        <option value="normal" selected>普通</option>
+        <option value="hard">较难</option>
+      </select>
+      <button class="btn primary" id="btnAI">和电脑对弈</button>
+    </div>
+
     <p class="sub" id="lobbyHint" style="margin:16px 0 0;font-size:12px"></p>
   </div>
 </div>
@@ -127,6 +138,7 @@
 </div>
 
 <script src="rules.js"></script>
+<script src="engine.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>

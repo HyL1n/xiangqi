@@ -103,6 +103,9 @@
     sound: true,
     theme: 'dark',
     font: 'kai',
+    aiLevel: 'normal',
+    aiSide: 'b',            // 人机对战里电脑执哪一边（默认电脑执黑、你执红先行）
+    aiThinking: false,
     ws: null,
     serverCfg: null,
     probed: false,
@@ -745,6 +748,13 @@
   function localView() {
     var g = S.local;
     var last = g.moves.length ? g.moves[g.moves.length - 1] : null;
+    var seats = { r: { name: '红方', online: true }, b: { name: '黑方', online: true } };
+    var you = 'both';
+    if (S.mode === 'ai') {
+      seats[S.aiSide] = { name: '电脑（' + levelName(S.aiLevel) + '）', online: true };
+      seats[X.other(S.aiSide)] = { name: S.name || '你', online: true };
+      you = X.other(S.aiSide);        // 人机对战里"你"只有一边，棋盘朝向也跟着它
+    }
     return {
       board: g.board.join(''),
       turn: g.turn,
@@ -754,8 +764,8 @@
       history: g.notations,
       moveCount: g.moves.length,
       lastMove: last ? { from: last.from, to: last.to } : null,
-      seats: { r: { name: '红方', online: true }, b: { name: '黑方', online: true } },
-      you: 'both',
+      seats: seats,
+      you: you,
       spectating: false,
       spectators: 0,
       timeBase: 0,
@@ -764,6 +774,64 @@
       rematchVotes: [],
       started: true
     };
+  }
+
+  function levelName(lv) {
+    return { easy: '简单', normal: '普通', hard: '较难' }[lv] || '普通';
+  }
+
+  /* ---------------- 人机对战 ---------------- */
+
+  function startAI() {
+    S.mode = 'ai';
+    S.code = null;
+    S.you = null;
+    S.aiLevel = ($('aiLevel') && $('aiLevel').value) || 'normal';
+    S.aiSide = 'b';                       // 电脑执黑，你执红先行
+    S.aiThinking = false;
+    S.local = new X.Game();
+    S.flipped = false;
+    $('chatCard').classList.add('hidden');
+    history.replaceState(null, '', location.pathname);
+    hideLobby();
+    setView(localView());
+    renderAll();
+    toast('人机对战开始，你执红先行（难度：' + levelName(S.aiLevel) + '）', 'ok');
+  }
+
+  // 轮到电脑就走一步；先让界面画出"思考中"，再算，避免看起来像卡死
+  function scheduleAI() {
+    if (S.mode !== 'ai' || !S.local || S.local.status !== 'playing') return;
+    if (S.local.turn !== S.aiSide) return;
+    S.aiThinking = true;
+    renderAll();
+    setTimeout(runAI, 80);
+  }
+
+  function runAI() {
+    var g = S.local;
+    if (S.mode !== 'ai' || !g || g.status !== 'playing' || g.turn !== S.aiSide) {
+      S.aiThinking = false;
+      renderAll();
+      return;
+    }
+    var eng = window.XiangqiEngine;
+    var cfg = (eng && eng.levels && eng.levels[S.aiLevel]) || { timeMs: 400, depth: 3 };
+    var res = null;
+    try { res = eng ? eng.findMove(g.board.join(''), g.turn, cfg) : null; } catch (e) { res = null; }
+    var applied = false;
+    if (res && res.move) applied = !!g.move(res.move[0], res.move[1]).ok;
+    if (!applied) {
+      // 兜底：引擎不可用或超时，随便走一步合法的，别让对局卡住
+      var ms = g.legalMoves();
+      if (ms.length) {
+        var pick = ms[Math.floor(Math.random() * ms.length)];
+        g.move(pick.from, pick.to);
+      }
+    }
+    S.aiThinking = false;
+    setView(localView());
+    renderAll();
   }
 
   /* ---------------- 走子 ---------------- */
@@ -790,6 +858,18 @@
   function doMove(from, to) {
     var v = S.view;
     if (!v || v.status !== 'playing') return;
+    if (S.mode === 'ai') {
+      var gg = S.local;
+      if (!gg) return;
+      if (S.aiThinking) { toast('电脑正在思考，稍等一下'); return; }
+      if (gg.turn !== X.other(S.aiSide)) { toast('还没轮到你走棋'); return; }
+      var ra = gg.move(from, to);
+      if (!ra.ok) { toast(ra.error || '这一步走不了'); return; }
+      setView(localView());
+      renderAll();
+      if (gg.status === 'playing') scheduleAI();
+      return;
+    }
     if (S.mode === 'local') {
       var r = S.local.move(from, to);
       if (!r.ok) { toast(r.error || '这一步走不了'); return; }
@@ -837,6 +917,11 @@
     var v = S.view;
     if (!v) return '等待开始…';
     if (v.status === 'over' && v.result) return '对局结束：' + resultText(v.result);
+    if (S.mode === 'ai') {
+      if (S.aiThinking) return '<b>电脑思考中…</b>';
+      if (v.check) return '<span class="warn">' + NAME_CN[v.turn] + '被将军</span>';
+      return v.turn === v.you ? '轮到你走棋（' + NAME_CN[v.you] + '）' : '电脑走棋…';
+    }
     if (S.mode === 'local') return v.check ? '<span class="warn">' + NAME_CN[v.turn] + '被将军</span>' : '轮到 <b>' + NAME_CN[v.turn] + '</b> 走棋（本机轮流）';
     if (v.spectating) return '观战中 · ' + (v.check ? '<span class="warn">' + NAME_CN[v.turn] + '被将军</span> ' : '') + '轮到 <b>' + NAME_CN[v.turn] + '</b>';
     if (!v.started) return '等对手加入…把房间号 <b>' + esc(S.code || '') + '</b> 发给朋友';
@@ -876,6 +961,21 @@
     var v = S.view;
     var box = $('actions');
     if (!v) { box.innerHTML = ''; return; }
+    if (S.mode === 'ai') {
+      box.classList.add('hidden');
+      var ab = $('localActions');
+      ab.classList.remove('hidden');
+      var opts = ['easy', 'normal', 'hard'].map(function (lv) {
+        return '<option value="' + lv + '"' + (S.aiLevel === lv ? ' selected' : '') + '>' + levelName(lv) + '</option>';
+      }).join('');
+      ab.innerHTML = S.confirm === 'reset'
+        ? '<button class="btn primary" data-act="reset-yes" style="grid-column:1/-1">确定重新开始（交换先手）</button>'
+          + '<button class="btn" data-act="cancel" style="grid-column:1/-1">取消</button>'
+        : '<button class="btn" data-act="ai-undo">悔棋</button>'
+          + '<button class="btn" data-act="reset">重新开始</button>'
+          + '<select class="btn" id="aiLevel2" style="grid-column:1/-1" title="电脑棋力">' + opts + '</select>';
+      return;
+    }
     if (S.mode === 'local') {
       box.classList.add('hidden');
       var lb = $('localActions');
@@ -977,7 +1077,8 @@
     if (conn) {
       var live = wsOpen();
       conn.className = 'conn' + (live ? ' live' : '');
-      conn.querySelector('b').textContent = S.mode === 'local' ? '本地对局' : (live ? '已连接' : '连接中…');
+      conn.querySelector('b').textContent = S.mode === 'ai' ? '人机对战'
+        : (S.mode === 'local' ? '本地对局' : (live ? '已连接' : '连接中…'));
     }
     $('codeChip').hidden = !inRoom;
     $('btnInvite').hidden = !inRoom;
@@ -1051,6 +1152,7 @@
       if (S.modalKey === k3 && open) return;
       S.modalKey = k3;
       var local = S.mode === 'local';
+      var solo = (S.mode === 'local' || S.mode === 'ai');
       var mine = v.you === v.result.winner;
       var cls = v.result.winner === 'draw' ? '' : (mine ? ' win' : ' lose');
       var head = v.result.winner === 'draw' ? '和棋'
@@ -1060,7 +1162,7 @@
         '<div class="mhead' + cls + '">' + esc(head) + '</div>'
         + '<div class="mbody big">' + esc(resultText(v.result)) + '</div>'
         + '<div class="mrow">'
-        + (local
+        + (solo
           ? '<button class="btn primary" data-modal="localfresh">重新开始</button>'
           : '<button class="btn primary" data-modal="rematch"' + (voted ? ' disabled' : '') + '>'
             + (voted ? '已请求，等对方' : '再来一局') + '</button>')
@@ -1427,7 +1529,25 @@
     if (act === 'sit') send({ t: 'sit' });
     else if (act === 'rematch') send({ t: 'rematch' });
     else if (act === 'reset') { S.confirm = 'reset'; renderAll(); }
-    else if (act === 'reset-yes') { S.confirm = null; S.local = new X.Game(); setView(localView()); renderAll(); }
+    else if (act === 'reset-yes') {
+      S.confirm = null;
+      if (S.mode === 'ai') S.aiSide = X.other(S.aiSide);   // 人机对战重新开始会交换先手
+      S.local = new X.Game();
+      S.aiThinking = false;
+      setView(localView());
+      renderAll();
+      if (S.mode === 'ai') scheduleAI();
+    }
+    else if (act === 'ai-undo') {
+      if (!S.local) return;
+      if (S.aiThinking) { toast('电脑思考中，稍等一下'); return; }
+      if (!S.local.moves.length) { toast('还没走棋'); return; }
+      // 撤两步：把电脑的应手和你自己那一步一起收回
+      S.local.undo(S.local.moves.length > 1 ? 2 : 1);
+      S.aiThinking = false;
+      setView(localView());
+      renderAll();
+    }
     else if (act === 'local-undo') {
       if (!S.local.moves.length) { toast('还没走棋'); return; }
       S.local.undo(1);
@@ -1441,6 +1561,15 @@
   }
   $('actions').addEventListener('click', onActionClick);
   $('localActions').addEventListener('click', onActionClick);
+  // 人机对战的难度下拉（容器是动态重建的，所以用委托的 change 事件）
+  $('localActions').addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'aiLevel2') {
+      S.aiLevel = e.target.value;
+      toast('电脑棋力已切到「' + levelName(S.aiLevel) + '」', 'ok');
+      setView(localView());
+      renderAll();
+    }
+  });
 
   // 弹窗按钮
   $('modal').addEventListener('click', function (e) {
@@ -1459,9 +1588,12 @@
     else if (act === 'decline') { send({ t: 'reply', accept: false }); closeModal(); S.modalKey = null; }
     else if (act === 'rematch') { send({ t: 'rematch' }); }
     else if (act === 'localfresh') {
+      if (S.mode === 'ai') S.aiSide = X.other(S.aiSide);
       S.local = new X.Game();
+      S.aiThinking = false;
       setView(localView());
       renderAll();
+      if (S.mode === 'ai') scheduleAI();
       closeModal(); S.modalKey = null;
     } else if (act === 'close') {
       S.modalDismissed = S.modalKey;
@@ -1541,6 +1673,7 @@
   $('btnCreate').addEventListener('click', createRoom);
   $('btnJoin').addEventListener('click', joinRoom);
   $('btnLocal').addEventListener('click', startLocal);
+  $('btnAI').addEventListener('click', function () { startAI(); });
   $('codeInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') joinRoom(); });
   $('nameInput').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { if (($('codeInput').value || '').trim().length >= 4) joinRoom(); else createRoom(); }
