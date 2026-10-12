@@ -211,6 +211,17 @@ export function handleMessage(room, conn, msg, env) {
       const wanted = String(msg.code || room.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (wanted && wanted !== room.code) { env.send(conn, { t: 'note', text: '房间号对不上' }); return false; }
 
+      // 房主选的用时（分钟）在这里生效；Cloudflare 版建房间时 timeBase 是 0，必须由客户端带过来
+      if (msg.t === 'create' && room.moves.length === 0) {
+        const mins = Math.max(0, Math.min(180, Number(msg.timeBase) || 0));
+        const base = Math.round(mins * 60000);
+        if (base !== room.timeBase) {
+          room.timeBase = base;
+          room.clocks = { r: base, b: base };
+          room.turnStart = 0;
+        }
+      }
+
       let seat = null;
       if (msg.token) {
         if (room.seats.r && room.seats.r.token === msg.token) seat = 'r';

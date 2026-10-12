@@ -39,6 +39,18 @@
         </div>
       </div>
 
+      <!-- 大号计时器：紧跟棋盘，一眼能看到谁的钟在走 -->
+      <div class="clockbar" id="clockBar" hidden>
+        <div class="cbox" id="clockBoxA">
+          <span class="cname">红方</span>
+          <b class="ctime">--:--</b>
+        </div>
+        <div class="cbox" id="clockBoxB">
+          <span class="cname">黑方</span>
+          <b class="ctime">--:--</b>
+        </div>
+      </div>
+
       <div class="bar">
         <div id="statusText">等待开始…</div>
         <div id="statusRight" style="display:flex;align-items:center;gap:8px"></div>
@@ -55,7 +67,6 @@
 
     <aside class="panel">
       <div class="players" id="players"></div>
-      <div class="card hidden" id="askCard"></div>
       <div class="actions" id="actions"></div>
       <div class="card">
         <div class="section-title"><span>棋谱记录</span><span id="histCount"></span></div>
@@ -86,9 +97,9 @@
     <div class="field">
       <label>用时（每人总时长）</label>
       <div class="seg" id="timeSeg">
-        <button type="button" data-min="0" aria-pressed="true">不限时</button>
+        <button type="button" data-min="0">不限时</button>
         <button type="button" data-min="5">5 分钟</button>
-        <button type="button" data-min="10">10 分钟</button>
+        <button type="button" data-min="10" aria-pressed="true">10 分钟</button>
         <button type="button" data-min="15">15 分钟</button>
         <button type="button" data-min="30">30 分钟</button>
       </div>
@@ -112,6 +123,11 @@
 </div>
 
 <div class="toasts" id="toasts"></div>
+
+<!-- 对方请求 / 对局结果用弹窗，放在棋盘正上方，避免看不到 -->
+<div class="overlay" id="modal" hidden>
+  <div class="modalcard" id="modalCard"></div>
+</div>
 
 <script src="rules.js"></script>
 <script src="config.js"></script>

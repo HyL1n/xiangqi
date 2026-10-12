@@ -44,6 +44,8 @@
     cursor: null,
     kb: false,
     confirm: null,
+    modalKey: null,
+    modalDismissed: null,
     chats: [],
     dirty: true
   };
@@ -151,6 +153,10 @@
 
   var canvas = $('board');
   var ctx2d = canvas.getContext('2d');
+  // 静态棋盘（木纹、网格、九宫、路数标记）画一次缓存在离屏画布上，
+  // 之后每帧只贴图，动画才不会卡。
+  var bgCanvas = document.createElement('canvas');
+  var bgCtx = bgCanvas.getContext('2d');
   var grid = $('grid');
   var cellBtns = [];
   var geo = { cell: 40, margin: 28, W: 360, H: 400, dpr: 1 };
@@ -163,24 +169,51 @@
 
   function layout() {
     var wrap = document.querySelector('.board-wrap');
+    var area = document.querySelector('.board-area');
     var narrow = window.matchMedia('(max-width: 900px)').matches;
     var availW = wrap.clientWidth || (window.innerWidth - 40);
+
+    /*
+     * 可用高度不能直接读 wrap.clientHeight —— 画布本身有固定尺寸，
+     * 会把这个 flex 子项撑住，形成"量到旧高度 → 画布不缩 → 继续溢出"的死循环。
+     * 所以自己算：棋board区总高 - 其它兄弟元素（计时条、状态栏…）- 间隙。
+     */
+    var siblings = 0, count = 0;
+    if (area) {
+      Array.prototype.forEach.call(area.children, function (el) {
+        if (el === wrap || el.hidden) return;
+        siblings += el.getBoundingClientRect().height;
+        count++;
+      });
+    }
+    var areaH = area && area.clientHeight ? area.clientHeight : Math.min(window.innerHeight * 0.72, 720);
     var availH = narrow
-      ? Math.min(window.innerHeight * 0.66, 620)
-      : (wrap.clientHeight || window.innerHeight * 0.78);
+      ? Math.max(200, Math.min(window.innerHeight * 0.66, 620) - siblings - 10 * count)
+      : Math.max(200, areaH - siblings - 10 * count);
+
     var cell = Math.min(availW / 9.56, availH / 10.56, 76);
     cell = Math.max(20, Math.floor(cell));
     geo.cell = cell;
     geo.margin = Math.round(cell * 0.78);
     geo.W = 8 * cell + 2 * geo.margin;
     geo.H = 9 * cell + 2 * geo.margin;
-    geo.dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    geo.dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.style.width = geo.W + 'px';
     canvas.style.height = geo.H + 'px';
     canvas.width = Math.round(geo.W * geo.dpr);
     canvas.height = Math.round(geo.H * geo.dpr);
+    renderBg();
     placeGrid();
     S.dirty = true;
+  }
+
+  // 只在布局变化或翻转棋盘时重画静态背景
+  function renderBg() {
+    bgCanvas.width = canvas.width;
+    bgCanvas.height = canvas.height;
+    bgCtx.setTransform(geo.dpr, 0, 0, geo.dpr, 0, 0);
+    bgCtx.clearRect(0, 0, geo.W, geo.H);
+    drawBoard(bgCtx);
   }
 
   /* 交叉点按钮层：真人用鼠标点，键盘 / 读屏也能用 */
@@ -388,7 +421,7 @@
     var v = S.view;
     c.setTransform(geo.dpr, 0, 0, geo.dpr, 0, 0);
     c.clearRect(0, 0, geo.W, geo.H);
-    drawBoard(c);
+    c.drawImage(bgCanvas, 0, 0, geo.W, geo.H);   // 静态棋盘直接贴图
     if (!v) return;
 
     var cell = geo.cell;
@@ -491,7 +524,9 @@
     var now = performance.now();
     if (S.anim && now - S.anim.t0 >= S.anim.dur) S.anim = null;
     var live = !!S.anim || !!S.sel || !!(S.view && S.view.check && S.view.status === 'playing');
-    if (S.dirty || (live && now - lastDraw > 55)) {
+    // 只要画面里有动的东西（走子动画 / 选中高亮 / 将军脉冲）就按刷新率满帧跑，
+    // 静态时靠 dirty 触发，不空转。
+    if (S.dirty || live) {
       lastDraw = now;
       S.dirty = false;
       draw();
@@ -637,7 +672,6 @@
     var v = S.view;
     var box = $('players');
     if (!v) { box.innerHTML = ''; return; }
-    var clocks = liveClocks() || v.clocks;
     var order = S.flipped ? ['b', 'r'] : ['r', 'b'];
     box.innerHTML = order.map(function (side) {
       var s = v.seats[side];
@@ -649,14 +683,45 @@
       var meta = s
         ? '<span class="dot ' + (s.online === false ? '' : 'live') + '"></span>' + NAME_CN[side] + (s.online === false ? ' · 已断开' : ' · 在线')
         : NAME_CN[side] + ' · 空座';
-      var clock = v.timeBase
-        ? '<div class="clock' + ((clocks[side] != null && clocks[side] < 30000) ? ' low' : '') + '">' + fmtClock(clocks[side]) + '</div>'
-        : '';
       return '<div class="' + cls + '">' +
         '<div class="face">' + (side === 'r' ? '帥' : '將') + '</div>' +
         '<div class="who"><div class="n">' + name + you + '</div><div class="m">' + meta + '</div></div>' +
-        clock + '</div>';
+        '</div>';
     }).join('');
+  }
+
+  // 棋盘下方的大号计时器（时钟从玩家卡里挪到这里，不再重复显示）
+  function renderClocks() {
+    var v = S.view;
+    var bar = $('clockBar');
+    if (!bar) return;
+    var want = !!(v && v.timeBase);
+    if (bar.hidden === want) {
+      // 计时条显隐会改变棋盘可用高度，需要重新排版
+      bar.hidden = !want;
+      layout();
+    }
+    if (!want) return;
+    var clocks = liveClocks() || v.clocks || { r: 0, b: 0 };
+    var order = S.flipped ? ['b', 'r'] : ['r', 'b'];
+    var slots = ['clockBoxA', 'clockBoxB'];
+    var sideName = { r: '红方', b: '黑方' };
+    order.forEach(function (side, i) {
+      var box = $(slots[i]);
+      if (!box) return;
+      var who = (v.seats && v.seats[side] && v.seats[side].name) || sideName[side];
+      var ms = clocks[side];
+      var cls = 'cbox';
+      if (v.status === 'playing' && v.turn === side) cls += ' active';
+      if (ms != null && ms < 30000) cls += ' low';
+      if (box.className !== cls) box.className = cls;
+      var nm = box.querySelector('.cname');
+      var t = box.querySelector('.ctime');
+      var label = (who === sideName[side]) ? sideName[side] : who + ' · ' + sideName[side];
+      if (nm.textContent !== label) nm.textContent = label;
+      var text = fmtClock(ms);
+      if (t.textContent !== text) t.textContent = text;
+    });
   }
 
   function renderActions() {
@@ -689,24 +754,15 @@
       html += '<button class="btn ' + (!playing ? 'primary' : '') + '" data-act="rematch" ' + (!playing && v.started ? '' : 'disabled') + '>再来一局</button>';
       var votes = (v.rematchVotes || []).length;
       if (!playing && votes > 0 && votes < 2) html += '<div class="ask wide" style="grid-column:1/-1">' + (v.rematchVotes.indexOf(v.you) >= 0 ? '已发送，等对方确认' : '对方想再来一局') + '</div>';
+      // 我自己发起的悔棋/和棋，也在这里留个可见的状态（对方那边是弹窗）
+      if (v.pending && v.pending.by === v.you) {
+        html += '<div class="ask wide" style="grid-column:1/-1">已请求'
+          + (v.pending.kind === 'draw' ? '和棋' : '悔棋') + '，等对方答复</div>';
+      }
     } else {
       html += '<button class="btn wide" data-act="sit">入座观战席（有空位就能下）</button>';
     }
     box.innerHTML = html;
-  }
-
-  function renderAsk() {
-    var v = S.view;
-    var card = $('askCard');
-    var p = v && v.pending;
-    if (!p) { card.classList.add('hidden'); card.innerHTML = ''; return; }
-    var mine = p.by === v.you;
-    var kindText = p.kind === 'draw' ? '和棋' : '悔棋';
-    card.classList.remove('hidden');
-    card.innerHTML = '<div class="ask">' +
-      '<span>' + (mine ? '已请求' + kindText + '，等对方答复' : '对方请求' + kindText) + '</span>' +
-      (mine ? '' : '<span class="row"><button class="btn mini primary" data-reply="1">同意</button><button class="btn mini" data-reply="0">拒绝</button></span>') +
-      '</div>';
   }
 
   function renderHist() {
@@ -773,12 +829,85 @@
   function renderAll() {
     renderTop();
     renderPlayers();
+    renderClocks();
     renderActions();
-    renderAsk();
     renderHist();
     renderStatus();
+    renderModal();
     syncGrid();
     S.dirty = true;
+  }
+
+  /* ---------------- 弹窗：对方请求 / 对局结果 ---------------- */
+
+  function openModal(html) {
+    $('modalCard').innerHTML = html;
+    $('modal').hidden = false;
+  }
+  function closeModal() {
+    $('modal').hidden = true;
+  }
+
+  function renderModal() {
+    var v = S.view;
+    if (!v) { if (S.modalKey) { closeModal(); S.modalKey = null; } return; }
+    var open = !$('modal').hidden;
+    var who;
+
+    // 1）对方请求悔棋 / 和棋，需要我裁决 —— 这个必须看得见
+    if (v.pending && v.pending.by !== v.you) {
+      var k1 = 'ask:' + v.pending.kind + ':' + v.pending.by;
+      if (S.modalKey === k1 && open) return;
+      S.modalKey = k1;
+      who = (v.seats[v.pending.by] || {}).name || '对方';
+      openModal(
+        '<div class="mhead">' + (v.pending.kind === 'draw' ? '对方提议和棋' : '对方请求悔棋') + '</div>'
+        + '<div class="mbody">' + esc(who) + (v.pending.kind === 'draw'
+          ? ' 提议和棋。同意就判和，拒绝继续走棋。'
+          : ' 想悔一步棋。同意后棋盘回到他走棋。') + '</div>'
+        + '<div class="mrow"><button class="btn primary" data-modal="accept">同意</button>'
+        + '<button class="btn" data-modal="decline">拒绝</button></div>');
+      return;
+    }
+
+    // 2）对局结束后，对方想再来一局
+    if (v.status === 'over' && v.rematchVotes && v.rematchVotes.length === 1 && v.rematchVotes.indexOf(v.you) < 0) {
+      var k2 = 'again:' + v.moveCount;
+      if (S.modalKey === k2 && open) return;
+      S.modalKey = k2;
+      openModal(
+        '<div class="mhead">对方想再来一局</div>'
+        + '<div class="mbody">同意后立刻开新局，双方交换先手。</div>'
+        + '<div class="mrow"><button class="btn primary" data-modal="rematch">同意，开始新局</button>'
+        + '<button class="btn" data-modal="close">先等等</button></div>');
+      return;
+    }
+
+    // 3）对局结果（含对方认输、绝杀、超时、和棋）
+    if (v.status === 'over' && v.result) {
+      var k3 = 'over:' + v.result.winner + ':' + v.result.reason + ':' + v.moveCount;
+      if (S.modalDismissed === k3) { if (S.modalKey) { closeModal(); S.modalKey = null; } return; }
+      if (S.modalKey === k3 && open) return;
+      S.modalKey = k3;
+      var local = S.mode === 'local';
+      var mine = v.you === v.result.winner;
+      var cls = v.result.winner === 'draw' ? '' : (mine ? ' win' : ' lose');
+      var head = v.result.winner === 'draw' ? '和棋'
+        : (local ? '对局结束' : (mine ? '你赢了！' : '你输了'));
+      var voted = (v.rematchVotes || []).indexOf(v.you) >= 0;
+      openModal(
+        '<div class="mhead' + cls + '">' + esc(head) + '</div>'
+        + '<div class="mbody big">' + esc(resultText(v.result)) + '</div>'
+        + '<div class="mrow">'
+        + (local
+          ? '<button class="btn primary" data-modal="localfresh">重新开始</button>'
+          : '<button class="btn primary" data-modal="rematch"' + (voted ? ' disabled' : '') + '>'
+            + (voted ? '已请求，等对方' : '再来一局') + '</button>')
+        + '<button class="btn" data-modal="close">关闭</button></div>');
+      return;
+    }
+
+    if (S.modalKey) { closeModal(); S.modalKey = null; }
   }
 
   /* ---------------- 连接 ---------------- */
@@ -918,7 +1047,7 @@
         S.you = m.seat || null;
         S.token = m.token || S.token;
         if (S.token) { try { localStorage.setItem(LS_TOKEN + m.code, S.token); } catch (e) { } }
-        if (autoFlipFor(S.you)) placeGrid();
+        if (autoFlipFor(S.you)) { renderBg(); placeGrid(); }
         history.replaceState(null, '', '?room=' + m.code);
         hideLobby();
         renderAll();
@@ -927,7 +1056,7 @@
       case 'state':
         S.code = m.code;
         S.you = m.you;
-        if (autoFlipFor(S.you)) placeGrid();   // 再来一局会交换红黑，朝向要跟着换
+        if (autoFlipFor(S.you)) { renderBg(); placeGrid(); }   // 再来一局会交换红黑，朝向要跟着换
         setView(m);
         renderAll();
         break;
@@ -1142,10 +1271,32 @@
   $('actions').addEventListener('click', onActionClick);
   $('localActions').addEventListener('click', onActionClick);
 
-  $('askCard').addEventListener('click', function (e) {
-    var btn = e.target.closest('button[data-reply]');
-    if (!btn) return;
-    send({ t: 'reply', accept: btn.dataset.reply === '1' });
+  // 弹窗按钮
+  $('modal').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-modal]');
+    if (!btn || btn.disabled) {
+      // 点空白处：需要裁决的请求不允许随手关掉
+      if (e.target === $('modal') && !/data-modal="accept"/.test($('modalCard').innerHTML)) {
+        S.modalDismissed = S.modalKey;
+        closeModal();
+        S.modalKey = null;
+      }
+      return;
+    }
+    var act = btn.dataset.modal;
+    if (act === 'accept') { send({ t: 'reply', accept: true }); closeModal(); S.modalKey = null; }
+    else if (act === 'decline') { send({ t: 'reply', accept: false }); closeModal(); S.modalKey = null; }
+    else if (act === 'rematch') { send({ t: 'rematch' }); }
+    else if (act === 'localfresh') {
+      S.local = new X.Game();
+      setView(localView());
+      renderAll();
+      closeModal(); S.modalKey = null;
+    } else if (act === 'close') {
+      S.modalDismissed = S.modalKey;
+      closeModal();
+      S.modalKey = null;
+    }
   });
 
   $('chatform').addEventListener('submit', function (e) {
@@ -1161,6 +1312,7 @@
     S.flipped = !S.flipped;
     S.userFlipped = true;
     renderPlayers();
+    renderBg();                 // 路数标记跟朝向有关，要重画
     placeGrid();
     S.dirty = true;
   });
@@ -1207,13 +1359,13 @@
     if (document.hidden) S.dirty = true;
   }, 20000);
 
-  // 有计时的对局里每秒刷新一次表（服务端不再每秒推送时钟）
+  // 有计时的对局里每 200ms 刷新大号计时器（只改这两个节点，不重建 DOM）
   setInterval(function () {
     var v = S.view;
     if (!v || !v.timeBase || v.status !== 'playing') return;
-    if (typeof document !== 'undefined' && document.hidden) return;
-    renderPlayers();
-  }, 500);
+    if (document.hidden) return;
+    renderClocks();
+  }, 200);
 
   /* ---------------- 启动 ---------------- */
 

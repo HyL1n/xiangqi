@@ -159,6 +159,22 @@ console.log('\n[7] 计时与超时');
   check('超时后状态广播为结束', a.state.status === 'over' && a.state.turn === 'b');
 }
 
+console.log('\n[7b] 建房时带来的用时（Cloudflare 版曾经漏掉）');
+{
+  const s = new Sim(0);                       // DO 新建时 timeBase=0
+  const a = s.add('小明');
+  s.send(a, { t: 'create', code: 'TEST01', name: '小明', timeBase: 10 });   // 客户端带 10 分钟
+  check('房间采用了客户端选的用时', s.room.timeBase === 600000, s.room.timeBase);
+  check('双方时钟初始化', a.state.clocks.r === 600000 && a.state.clocks.b === 600000, a.state.clocks);
+  const b = s.join('小红');
+  check('对手入座后仍是我选的用时', b.state.timeBase === 600000, b.state.timeBase);
+  s.tick(3000);
+  s.send(a, { t: 'move', from: idx(7, 7), to: idx(4, 7) });
+  check('走一步后红方被扣 3 秒', Math.abs(b.state.clocks.r - 597000) < 5, b.state.clocks.r);
+  check('黑方仍未计时', b.state.clocks.b === 600000, b.state.clocks.b);
+  check('给出了超时唤醒时刻', nextDeadline(s.room, s.clock) > s.clock);
+}
+
 console.log('\n[8] 断线重连与座位接管');
 {
   const s = new Sim(0);
