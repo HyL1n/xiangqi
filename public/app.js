@@ -9,7 +9,8 @@
   var NAME_CN = { r: '红方', b: '黑方' };
   var REASON = {
     checkmate: '绝杀', stalemate: '困毙', resign: '认输', timeout: '超时',
-    agreement: '双方同意', repetition: '三次重复局面', quiet: '60 回合无吃子'
+    agreement: '双方同意', repetition: '三次重复局面', quiet: '60 回合无吃子',
+    'perpetual-check': '长将判负', 'perpetual-chase': '长捉判负', perpetual: '长将长捉判负'
   };
   var CN_FILE = ['九', '八', '七', '六', '五', '四', '三', '二', '一'];
   var NO_SERVER_MSG = '这个地址上没有对局服务器（静态托管只发页面）：把 config.js 的 XQ_SERVER 指向你的服务器，或先用“本地对局”';

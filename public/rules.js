@@ -244,6 +244,82 @@
     return res;
   }
 
+  /*
+   * ---------- 长将 / 长捉 ----------
+   *
+   * 中国象棋的重复局面规则：循环里如果某一方"长将""长捉""一将一捉"，都算禁止着法，
+   * 判这一方负；双方都不违规（比如互相长兑、长跟、长拦）才是和棋。
+   *
+   * 这里用一个够用的近似来判"捉"：走完这一步之后，下一手能吃掉的、确实有便宜的子
+   * （对方无根，或者换子划算）。将被将军算"将"不算"捉"，兵/卒不当被捉对象（跟着规则走）。
+   */
+  var CHASE_VAL = { K: 100, R: 9, C: 4.5, N: 4, A: 2, B: 2, P: 1 };
+
+  /*
+   * 该方有没有子能真走到这个格子上（用来判断被捉的子是不是"无根"）。
+   * 注意不能用 isAttacked：它把将帅照面也算成"攻击"，但将帅其实走不出宫、
+   * 根本没法回来吃子，那样会把很多无根子误判成有根。
+   */
+  function canRecapture(board, sq, side) {
+    for (var i = 0; i < SIZE; i++) {
+      var ch = board[i];
+      if (ch === '.' || sideOf(ch) !== side) continue;
+      var ps = pseudoMoves(board, i);
+      for (var j = 0; j < ps.length; j++) if (ps[j] === sq) return true;
+    }
+    return false;
+  }
+
+  function chaseTargets(board, side) {
+    var ms = legalMoves(board, side), out = [], i;
+    for (i = 0; i < ms.length; i++) {
+      var target = board[ms[i].to];
+      if (target === '.') continue;
+      var tt = typeOf(target);
+      if (tt === 'K' || tt === 'P') continue;
+      var defended = canRecapture(board, ms[i].to, sideOf(target));
+      if (!defended || CHASE_VAL[tt] > CHASE_VAL[typeOf(board[ms[i].from])]) out.push(ms[i].to);
+    }
+    return out;
+  }
+
+  // 回到重复局面时，翻出循环里双方的着法，判断谁违规
+  function repetitionJudge(game) {
+    var states = [], i;
+    for (i = 0; i < game.snapshots.length; i++) {
+      states.push(game.snapshots[i].board + game.snapshots[i].turn);
+    }
+    states.push(game.board.join('') + game.turn);
+
+    var key = states[states.length - 1], hits = [];
+    for (i = 0; i < states.length; i++) if (states[i] === key) hits.push(i);
+    if (hits.length < 3) return { winner: 'draw', reason: 'repetition' };
+
+    // 最后一轮循环 = 第 from 步到第 to-1 步（from/to 是同一局面两端的下标）
+    var from = hits[hits.length - 2], to = hits[hits.length - 1];
+    var agg = { r: { check: 0, chase: 0, idle: 0 }, b: { check: 0, chase: 0, idle: 0 } };
+    for (i = from; i < to && i < game.moves.length; i++) {
+      var mv = game.moves[i];
+      var after = (i + 1 < states.length) ? toBoard(states[i + 1].slice(0, 90)) : game.board;
+      var mover = sideOf(mv.piece);
+      var gaveCheck = isKingAttacked(after, other(mover));
+      var gaveChase = !gaveCheck && chaseTargets(after, mover).length > 0;
+      agg[mover][gaveCheck ? 'check' : (gaveChase ? 'chase' : 'idle')]++;
+    }
+
+    function offence(side) {
+      var a = agg[side];
+      if (a.check + a.chase === 0 || a.idle > 0) return '';
+      if (a.check > 0 && a.chase === 0) return 'perpetual-check';   // 长将
+      if (a.chase > 0 && a.check === 0) return 'perpetual-chase';   // 长捉
+      return 'perpetual';                                          // 一将一捉
+    }
+    var rBad = offence('r'), bBad = offence('b');
+    if (rBad && !bBad) return { winner: 'b', reason: rBad };
+    if (bBad && !rBad) return { winner: 'r', reason: bBad };
+    return { winner: 'draw', reason: 'repetition' };   // 双方都违规 / 都不违规 → 和
+  }
+
   function movesFrom(board, side, from) {
     return legalMoves(board, side).filter(function (m) { return m.from === from; });
   }
@@ -358,7 +434,7 @@
       };
     } else if (repeats >= 3) {
       this.status = 'over';
-      this.result = { winner: 'draw', reason: 'repetition' };
+      this.result = repetitionJudge(this);
     } else if (this.quietPlies >= 120) {
       this.status = 'over';
       this.result = { winner: 'draw', reason: 'quiet' };

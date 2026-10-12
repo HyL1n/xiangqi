@@ -323,7 +323,10 @@ const REASON_TEXT = {
   timeout: '超时',
   agreement: '和棋（双方同意）',
   repetition: '三次重复局面',
-  quiet: '60 回合无吃子'
+  quiet: '60 回合无吃子',
+  'perpetual-check': '长将判负',
+  'perpetual-chase': '长捉判负',
+  perpetual: '长将长捉判负'
 };
 
 function resultText(result) {

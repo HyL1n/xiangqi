@@ -98,5 +98,57 @@ const jumpMove = sFrom.some((m) => X.notation(X.START, m.from, m.to) === '炮二
 console.log('含翻山吃马 炮二进七:', jumpMove ? '✓' : '✗');
 if (!jumpMove) pass = false;
 
+/* ---------- 长将 / 长捉 / 普通重复局面 ----------
+ * 规则：循环着法里如果某一方"全是将军"或"全是捉吃无根子"，属于禁止着法，判该方负；
+ * 双方都没违规（比如都在闲着、或者互相长兑）才是和棋。
+ */
+function boardOf(list) {                  // 'rR4,3' = 红车放在 (4,3)
+  const b = new Array(90).fill('.');
+  for (const s of list) {
+    const side = s[0], type = s[1];
+    const [x, y] = s.slice(2).split(',').map(Number);
+    b[X.idx(x, y)] = side === 'r' ? type.toUpperCase() : type.toLowerCase();
+  }
+  return b.join('');
+}
+function playAll(game, seq) {
+  for (const [fx, fy, tx, ty] of seq) {
+    const r = game.move(X.idx(fx, fy), X.idx(tx, ty));
+    if (!r.ok) throw new Error('测试着法非法：' + X.idx(fx, fy) + '→' + X.idx(tx, ty) + ' ' + r.error);
+  }
+  return game;
+}
+function expectEq(name, got, want) {
+  const ok = got === want;
+  if (!ok) pass = false;
+  console.log(`  ${ok ? '✓' : '✗'} ${name}（得到 ${got}，期望 ${want}）`);
+}
+
+console.log('\n[长将 / 长捉 / 重复局面]');
+{
+  // 红车在 4 路和 3 路之间来回将军，黑将只能跟着走 → 判红方负
+  const g = new X.Game(boardOf(['rR4,3', 'rK5,9', 'bK3,0']));
+  for (let i = 0; i < 2; i++) playAll(g, [[4, 3, 3, 3], [3, 0, 4, 0], [3, 3, 4, 3], [4, 0, 3, 0]]);
+  console.log('  ' + g.status + ' ' + JSON.stringify(g.result));
+  expectEq('长将 → 判红方负', g.result && g.result.winner, 'b');
+  expectEq('长将原因', g.result && g.result.reason, 'perpetual-check');
+}
+{
+  // 红车追着黑方一个无根马跑，反复捉吃 → 判红方负
+  const g = new X.Game(boardOf(['rR0,7', 'rK5,9', 'bN4,5', 'bK4,0']));
+  for (let i = 0; i < 2; i++) playAll(g, [[0, 7, 0, 5], [4, 5, 3, 7], [0, 5, 0, 7], [3, 7, 4, 5]]);
+  console.log('  ' + g.status + ' ' + JSON.stringify(g.result));
+  expectEq('长捉 → 判红方负', g.result && g.result.winner, 'b');
+  expectEq('长捉原因', g.result && g.result.reason, 'perpetual-chase');
+}
+{
+  // 双方都在闲着（没将军也没捉子）→ 还是和棋
+  const g = new X.Game(boardOf(['rR0,5', 'rK3,9', 'bK4,0']));
+  for (let i = 0; i < 2; i++) playAll(g, [[0, 5, 1, 5], [4, 0, 5, 0], [1, 5, 0, 5], [5, 0, 4, 0]]);
+  console.log('  ' + g.status + ' ' + JSON.stringify(g.result));
+  expectEq('普通重复局面 → 和棋', g.result && g.result.winner, 'draw');
+  expectEq('和棋原因', g.result && g.result.reason, 'repetition');
+}
+
 console.log(pass ? '\n全部通过 ✅' : '\n存在失败 ❌');
 process.exit(pass ? 0 : 1);
