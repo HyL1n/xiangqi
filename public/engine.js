@@ -54,10 +54,17 @@
   var tt = new Map();
   var killers = [];
   var history = null;
+  var kingPos = { r: -1, b: -1 };   // 将/帅的位置（增量维护，省掉每次都全盘扫描）
 
   function hashBoard() {
     hash = 0;
-    for (var i = 0; i < 90; i++) { var c = b[i]; if (c !== '.') hash ^= ZOB[i][c]; }
+    kingPos.r = -1; kingPos.b = -1;
+    for (var i = 0; i < 90; i++) {
+      var c = b[i];
+      if (c === '.') continue;
+      hash ^= ZOB[i][c];
+      if (c === 'K') kingPos.r = i; else if (c === 'k') kingPos.b = i;
+    }
   }
 
   function idx(x, y) { return y * 9 + x; }
@@ -66,8 +73,10 @@
   function other(s) { return s === 'r' ? 'b' : 'r'; }
 
   function findKing(side) {
-    var t = side === 'r' ? 'K' : 'k';
-    for (var i = 0; i < 90; i++) if (b[i] === t) return i;
+    var p = side === 'r' ? kingPos.r : kingPos.b;
+    if (p >= 0 && b[p] === (side === 'r' ? 'K' : 'k')) return p;
+    var t = side === 'r' ? 'K' : 'k';          // 兜底：增量值万一不同步，就扫一遍
+    for (var i = 0; i < 90; i++) if (b[i] === t) { if (side === 'r') kingPos.r = i; else kingPos.b = i; return i; }
     return -1;
   }
 
@@ -78,12 +87,16 @@
     if (cap !== '.') hash ^= ZOB[m[1]][cap];
     hash ^= ZOB[m[1]][pc];
     b[m[1]] = pc; b[m[0]] = '.';
+    if (pc === 'K') kingPos.r = m[1]; else if (pc === 'k') kingPos.b = m[1];
+    if (cap === 'K') kingPos.r = -1; else if (cap === 'k') kingPos.b = -1;
     return cap;
   }
   function unmake(m, cap) {
     var pc = b[m[1]];
     hash ^= ZOB[m[1]][pc];
     b[m[0]] = pc; b[m[1]] = cap;
+    if (pc === 'K') kingPos.r = m[0]; else if (pc === 'k') kingPos.b = m[0];
+    if (cap === 'K') kingPos.r = m[1]; else if (cap === 'k') kingPos.b = m[1];
     hash ^= ZOB[m[0]][pc];
     if (cap !== '.') hash ^= ZOB[m[1]][cap];
   }
@@ -226,7 +239,9 @@
     return bestScore;
   }
 
-  function rootSearch(side, depth, firstMove) {
+  // fullWindow=true 时每个着法都用全窗口（"简单档"要靠精确分数来随机挑着法）；
+  // 否则用 alpha 收窄——排在前面的着法已经很强时，后面的很快就被剪掉。
+  function rootSearch(side, depth, firstMove, fullWindow) {
     var moves = genLegal(side);
     if (!moves.length) return { move: null, score: -MATE, moves: moves };
     moves.sort(function (p, q) { return scoreMove(q) - scoreMove(p); });
@@ -235,15 +250,15 @@
       for (var i = 0; i < moves.length; i++) if (moves[i][0] === firstMove[0] && moves[i][1] === firstMove[1]) k = i;
       if (k > 0) { var t = moves[0]; moves[0] = moves[k]; moves[k] = t; }
     }
-    var best = moves[0], bestScore = -Infinity;
+    var best = moves[0], bestScore = -Infinity, alphaRoot = -Infinity;
     var scored = [];
     for (var j = 0; j < moves.length; j++) {
       var m = moves[j], cap = make(m);
-      var v = -negamax(other(side), depth - 1, -Infinity, Infinity, 1);
+      var v = -negamax(other(side), depth - 1, -Infinity, fullWindow ? Infinity : -alphaRoot, 1);
       unmake(m, cap);
       if (timedOut) break;
       scored.push({ m: m, v: v });
-      if (v > bestScore) { bestScore = v; best = m; }
+      if (v > bestScore) { bestScore = v; best = m; if (v > alphaRoot) alphaRoot = v; }
     }
     return { move: best, score: bestScore, moves: scored };
   }
@@ -267,7 +282,7 @@
     var best = null, bestScore = 0, lastScored = null;
 
     for (var d = 1; d <= maxDepth; d++) {
-      var r = rootSearch(side, d, best);
+      var r = rootSearch(side, d, best, !!opts.random);
       if (timedOut) break;
       best = r.move; bestScore = r.score;
       if (opts.random && r.moves && r.moves.length > 1) lastScored = r.moves;

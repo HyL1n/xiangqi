@@ -842,13 +842,13 @@
     var eng = window.XiangqiEngine;
     var cfg = (eng && eng.levels && eng.levels[lv]) || { timeMs: 400, depth: 3 };
     // 退回主线程算的话，把时间压到 900ms 以内，别让界面卡太久
-    return S.aiWorker ? cfg : Object.assign({}, cfg, { timeMs: Math.min(cfg.timeMs || 400, 900) });
+    return ensureWorker() ? cfg : Object.assign({}, cfg, { timeMs: Math.min(cfg.timeMs || 400, 900) });
   }
 
   /*
-   * 把局面丢给后台线程算，算完回调。拿不到 Worker（老浏览器/某些环境）就退回主线程。
+   * 后台线程只建一次（第一次建的时候试一下，建不出来就退回主线程）。
    */
-  function askEngine(board, side, cfg, done) {
+  function ensureWorker() {
     if (!askEngine.w && window.Worker) {
       try { askEngine.w = new Worker('ai-worker.js'); } catch (e) { askEngine.w = null; }
       if (askEngine.w) {
@@ -865,6 +865,14 @@
       }
     }
     S.aiWorker = !!askEngine.w;
+    return askEngine.w;
+  }
+
+  /*
+   * 把局面丢给后台线程算，算完回调。拿不到 Worker（老浏览器/某些环境）就退回主线程。
+   */
+  function askEngine(board, side, cfg, done) {
+    askEngine.w = ensureWorker();
     if (!askEngine.w) {                       // 主线程兜底
       var res = null;
       try { res = window.XiangqiEngine ? XiangqiEngine.findMove(board, side, cfg) : null; } catch (e) { res = null; }
