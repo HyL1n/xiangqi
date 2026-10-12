@@ -117,15 +117,15 @@
 
     <div class="field" style="margin-bottom:0">
       <div class="joinrow">
-        <label for="aiLevel">电脑棋力（难度）</label>
-        <select id="aiLevel" class="btn" title="电脑棋力">
+        <label class="aiLead" for="aiLevel">选难度<span class="aiLeadArrow">→</span></label>
+        <select id="aiLevel" class="btn" title="电脑棋力" aria-label="电脑棋力（难度）">
           <option value="easy">简单</option>
           <option value="normal" selected>普通</option>
           <option value="hard">较难</option>
         </select>
         <button class="btn primary" id="btnAI">和电脑对弈</button>
       </div>
-      <p class="sub" style="margin:8px 0 0;font-size:12px">选好难度再点「和电脑对弈」：<b>较难</b>是电脑最强的一档。</p>
+      <p class="sub" style="margin:8px 0 0;font-size:12px">提示：<b>较难</b>是电脑最强的一档；选好后点「和电脑对弈」。</p>
     </div>
 
     <p class="sub" id="lobbyHint" style="margin:16px 0 0;font-size:12px"></p>
