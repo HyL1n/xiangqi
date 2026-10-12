@@ -102,6 +102,44 @@ location / {
 
 把 `public` 拖到 Netlify Drop 就够了：能玩“同一台设备轮流下”的本地对局，棋盘、记谱、规则判定、音效都在前端跑。
 
+### 方案 D｜Cloudflare Workers（免费、不用绑卡、不休眠）— 推荐
+
+这是目前最省心的免费方案：不需要信用卡，免费额度每天 10 万次请求，**不会像 Render 免费档那样闲置休眠**，自带 `https://xxx.workers.dev` 域名。
+
+架构上有一点不同：Workers 没有常驻进程，所以**每个房间由一个 Durable Object 承载**，静态页面由 Workers 的静态资源功能直接提供 —— 整个网站还是同一个域名，前端一行都不用改。
+
+**一键部署**
+
+1. 注册一个免费 Cloudflare 账号（<https://dash.cloudflare.com/sign-up>，填邮箱+密码即可，不需要绑卡，也不需要先有域名）。
+2. 双击项目里的 **`部署到Cloudflare.bat`**：
+   - 它会先把项目复制到 `%USERPROFILE%\xiangqi-cloudflare`（避开跨账户权限问题）
+   - 第一次会打开浏览器让你**授权登录 Cloudflare**（点 Allow / 选你的账号）
+   - 然后自动执行 `wrangler deploy`，创建 Worker、Durable Object 和静态资源
+3. 成功后窗口里会打印网站地址：
+
+   ```
+   ✅ 部署成功！
+      网站地址: https://xiangqi.你的子域.workers.dev
+   ```
+
+   这个地址就是完整网站，发给朋友即可。以后想更新，改完代码再双击一次这个 bat。
+
+**手动部署（等价）**
+
+```bash
+cd xiangqi
+npx wrangler login      # 浏览器授权
+npx wrangler deploy
+```
+
+配置在仓库根目录的 `wrangler.toml`：Worker 入口 `cloudflare/worker.js`，静态资源目录 `./public`，Durable Object 绑定名 `ROOMS`；免费方案要求用 SQLite 版 DO，所以迁移写的是 `new_sqlite_classes`。
+
+**成本与限制**
+
+- 免费额度：Workers 每天 10 万次请求；Durable Object 用 WebSocket Hibernation（没人说话时不占时长、会被回收，靠 storage 里的房间快照恢复），两个人的一局棋远远用不完。
+- 房间数据存在 Durable Object 的存储里，重新部署不会丢正在进行中的棋局。
+- 单个 DO 是单点的：同一房间的所有消息都落到同一个实例上，这也是它保证不串房间的原因。
+
 ### 为什么不直接在 Netlify 上做联机
 
 把 WebSocket 换成 HTTP 轮询 + Netlify Blobs 存房间状态理论上可行，但走子要 1–2 秒后才出现在对方屏幕上，而且轮询很快会吃光 Functions 的免费调用额度（两名玩家 1.5 秒轮询一次，一个月大概只能下 50 局）。想要这种“纯 Netlify”的版本可以再改。
@@ -134,15 +172,26 @@ location / {
 ```
 xiangqi/
 ├── 启动象棋.bat      双击启动（Windows）
+├── 推送到GitHub.bat  双击把代码推到 GitHub
+├── 部署到Cloudflare.bat  双击部署到 Cloudflare Workers
 ├── server.js         HTTP 服务 + 自己实现的 WebSocket + 房间与对局裁决
 ├── screenshot.png    对局界面截图
 ├── netlify.toml      Netlify 静态发布配置（只发布 public/）
 ├── Dockerfile        对战服务器镜像（Render / Railway / Fly / VPS 都能用）
 ├── render.yaml       Render 一键部署蓝图
+├── wrangler.toml     Cloudflare Workers 部署配置
 ├── package.json      npm start / npm test（无依赖，仅给部署平台识别用）
+├── cloudflare/
+│   ├── worker.js       Worker 入口 + 房间 Durable Object（WebSocket Hibernation）
+│   ├── room.js         房间与对局逻辑（纯逻辑，Node 里也能测）
+│   └── rules-bridge.js 让 UMD 版规则引擎同时被 Workers(ESM) 和 Node 复用
+├── scripts/
+│   ├── push-to-github.js   一键推送脚本
+│   └── deploy-cloudflare.js 一键部署脚本
 ├── tests/
 │   ├── test-rules.js   规则引擎测试（perft + 记谱，需要 Node）
-│   └── test-server.js  端到端测试（建房/走子/悔棋/和棋/换先/观战/重连）
+│   ├── test-server.js  端到端测试（建房/走子/悔棋/和棋/换先/观战/重连，25 项）
+│   └── test-cloudflare-room.mjs  Cloudflare 版房间逻辑测试（40 项）
 └── public/
     ├── index.html    页面结构
     ├── style.css     样式（含窄屏适配）

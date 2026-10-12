@@ -33,12 +33,14 @@
     serverCfg: null,
     probed: false,
     noServer: false,
+    pendingCreate: false,
     queue: [],
     retries: 0,
     reconnTimer: null,
     exiting: false,
     anim: null,
     prev: null,
+    clockBase: null,
     cursor: null,
     kb: false,
     confirm: null,
@@ -74,6 +76,20 @@
     var m = Math.floor(total / 60), s = total % 60;
     if (m >= 60) return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0') + ':' + String(s).padStart(2, '0');
     return m + ':' + String(s).padStart(2, '0');
+  }
+
+  // 前端本地走表：谁在走就扣谁的时间
+  function liveClocks() {
+    var v = S.view;
+    if (!v || !v.timeBase) return null;
+    var b = S.clockBase;
+    if (!b) return v.clocks;
+    var out = { r: b.clocks.r, b: b.clocks.b };
+    if (b.status === 'playing' && b.turn) {
+      var left = out[b.turn] - (performance.now() - b.at);
+      out[b.turn] = left > 0 ? left : 0;
+    }
+    return out;
   }
 
   function resultText(res) {
@@ -502,6 +518,12 @@
       }, 260);
     }
     S.view = v;
+    // 时钟：服务端只给"某个时刻的剩余量"，之后由前端自己走表
+    if (v && v.timeBase) {
+      S.clockBase = { clocks: { r: v.clocks.r, b: v.clocks.b }, at: performance.now(), turn: v.turn, status: v.status };
+    } else {
+      S.clockBase = null;
+    }
     S.sel = null;
     S.targets = [];
     S.legalKey = '';
@@ -615,6 +637,7 @@
     var v = S.view;
     var box = $('players');
     if (!v) { box.innerHTML = ''; return; }
+    var clocks = liveClocks() || v.clocks;
     var order = S.flipped ? ['b', 'r'] : ['r', 'b'];
     box.innerHTML = order.map(function (side) {
       var s = v.seats[side];
@@ -627,7 +650,7 @@
         ? '<span class="dot ' + (s.online === false ? '' : 'live') + '"></span>' + NAME_CN[side] + (s.online === false ? ' · 已断开' : ' · 在线')
         : NAME_CN[side] + ' · 空座';
       var clock = v.timeBase
-        ? '<div class="clock' + ((v.clocks[side] != null && v.clocks[side] < 30000) ? ' low' : '') + '">' + fmtClock(v.clocks[side]) + '</div>'
+        ? '<div class="clock' + ((clocks[side] != null && clocks[side] < 30000) ? ' low' : '') + '">' + fmtClock(clocks[side]) + '</div>'
         : '';
       return '<div class="' + cls + '">' +
         '<div class="face">' + (side === 'r' ? '帥' : '將') + '</div>' +
@@ -770,10 +793,29 @@
     try { qs = (new URLSearchParams(location.search).get('server') || '').trim(); } catch (e) { }
     S.serverCfg = qs || cfg || null;
 
-    if (!S.serverCfg) return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
-    if (/^wss?:\/\//i.test(S.serverCfg)) return S.serverCfg.replace(/\/+$/, '') + '/ws';
-    if (/^https?:\/\//i.test(S.serverCfg)) return S.serverCfg.replace(/^http/i, 'ws').replace(/\/+$/, '') + '/ws';
-    return (location.protocol === 'https:' ? 'wss://' : 'ws://') + S.serverCfg.replace(/\/+$/, '') + '/ws';
+    var url;
+    if (!S.serverCfg) url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+    else if (/^wss?:\/\//i.test(S.serverCfg)) url = S.serverCfg.replace(/\/+$/, '') + '/ws';
+    else if (/^https?:\/\//i.test(S.serverCfg)) url = S.serverCfg.replace(/^http/i, 'ws').replace(/\/+$/, '') + '/ws';
+    else url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + S.serverCfg.replace(/\/+$/, '') + '/ws';
+
+    // 房间号放进连接地址：Cloudflare 版靠它路由到对应房间的 Durable Object
+    if (S.code) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'room=' + encodeURIComponent(S.code);
+    return url;
+  }
+
+  // 本地生成房间号：Cloudflare 版必须在连接之前就知道房间号
+  function newCode(len) {
+    var A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s = '', i, b;
+    try {
+      b = new Uint8Array(len || 6);
+      crypto.getRandomValues(b);
+      for (i = 0; i < b.length; i++) s += A[b[i] % A.length];
+    } catch (e) {
+      s = '';
+      for (i = 0; i < (len || 6); i++) s += A[Math.floor(Math.random() * A.length)];
+    }
+    return s;
   }
 
   function send(obj) {
@@ -784,6 +826,11 @@
   function connect() {
     if (S.mode !== 'online') return;
     if (S.noServer) { toast(NO_SERVER_MSG, 'err'); return; }
+    // 每个房间一条连接：换房间时先把旧连接关掉
+    if (S.ws) {
+      try { S.ws.onclose = null; S.ws.close(); } catch (e) { }
+      S.ws = null;
+    }
     var url = serverUrl();
     var ws;
     try { ws = new WebSocket(url); }
@@ -791,7 +838,8 @@
     S.ws = ws;
     ws.onopen = function () {
       S.retries = 0;
-      if (S.code) send({ t: 'join', code: S.code, name: S.name, token: S.token });
+      // 新建房间时还没 create，不能先 join（会提示"没找到房间"）
+      if (S.code && !S.pendingCreate) send({ t: 'join', code: S.code, name: S.name, token: S.token });
       var q = S.queue.slice(); S.queue = [];
       q.forEach(function (m) { send(m); });
       renderStatus();
@@ -850,6 +898,7 @@
   function handle(m) {
     switch (m.t) {
       case 'joined':
+        S.pendingCreate = false;
         S.code = m.code;
         S.you = m.seat || null;
         S.token = m.token || S.token;
@@ -868,7 +917,11 @@
         renderAll();
         break;
       case 'clocks':
-        if (S.view) { S.view.clocks = { r: m.r, b: m.b }; renderPlayers(); }
+        if (S.view) {
+          S.view.clocks = { r: m.r, b: m.b };
+          S.clockBase = { clocks: { r: m.r, b: m.b }, at: performance.now(), turn: S.view.turn, status: S.view.status };
+          renderPlayers();
+        }
         break;
       case 'chat':
         renderChat([m]);
@@ -887,6 +940,13 @@
   function showLobby() { $('lobby').hidden = false; }
   function hideLobby() { $('lobby').hidden = true; }
 
+  // 邀请链接进来时大厅会被改写，退出房间后要还原
+  function resetLobby() {
+    document.querySelector('.lobbycard h2').textContent = '象棋';
+    $('btnCreate').textContent = '创建房间，我执红先行';
+    $('lobbyHint').textContent = '提示：同一 Wi-Fi 下，朋友用你电脑的局域网地址打开即可；也可以用内网穿透让别人从外网加入。';
+  }
+
   function currentTime() {
     var b = document.querySelector('#timeSeg button[aria-pressed="true"]');
     return b ? parseInt(b.dataset.min, 10) || 0 : 0;
@@ -900,9 +960,11 @@
   function createRoom() {
     S.name = ($('nameInput').value || '').trim() || '红方';
     saveName();
-    S.code = null; S.token = null; S.queue = [];
+    S.token = null; S.queue = [];
+    S.code = newCode(6);          // 自己先定房间号，才能连到对应的房间
+    S.pendingCreate = true;
     startOnline();
-    send({ t: 'create', name: S.name, timeBase: currentTime() });
+    send({ t: 'create', code: S.code, name: S.name, timeBase: currentTime() });
   }
 
   function joinRoom() {
@@ -912,6 +974,7 @@
     saveName();
     S.code = code;
     S.token = getToken(code);
+    S.pendingCreate = false;
     startOnline();
   }
 
@@ -947,6 +1010,7 @@
     $('linkBox').classList.add('hidden');
     history.replaceState(null, '', location.pathname);
     setView(null);
+    resetLobby();
     showLobby();
     renderAll();
     S.exiting = false;
@@ -1120,6 +1184,14 @@
     if (wsOpen()) send({ t: 'ping' });
     if (document.hidden) S.dirty = true;
   }, 20000);
+
+  // 有计时的对局里每秒刷新一次表（服务端不再每秒推送时钟）
+  setInterval(function () {
+    var v = S.view;
+    if (!v || !v.timeBase || v.status !== 'playing') return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    renderPlayers();
+  }, 500);
 
   /* ---------------- 启动 ---------------- */
 

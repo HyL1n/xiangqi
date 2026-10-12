@@ -1,0 +1,28 @@
+# Cloudflare Workers 部署配置（在仓库根目录执行 wrangler 命令）
+#
+#   npx wrangler deploy      部署
+#   npx wrangler dev         本地起一个模拟环境调试
+#
+# 前端静态文件直接用 public/，不需要单独部署 —— 这就是完整网站。
+
+name = "xiangqi"
+main = "cloudflare/worker.js"
+compatibility_date = "2025-03-01"
+
+# 静态资源：public/ 里的 index.html / app.js / rules.js / style.css / config.js
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# 每个房间一个 Durable Object
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "RoomDO"
+
+# 免费方案必须用 SQLite 版 Durable Object（new_sqlite_classes）
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RoomDO"]
+
+[observability]
+enabled = true

@@ -198,9 +198,10 @@ function randCode() {
 }
 function randToken() { return crypto.randomBytes(12).toString('hex'); }
 
-function createRoom(timeBase) {
+function createRoom(timeBase, wanted) {
   let code;
-  do { code = randCode(); } while (rooms.has(code));
+  if (wanted && /^[A-Z0-9]{4,8}$/.test(wanted) && !rooms.has(wanted)) code = wanted;
+  else do { code = randCode(); } while (rooms.has(code));
   const room = {
     code,
     timeBase: timeBase > 0 ? timeBase : 0,
@@ -378,7 +379,9 @@ function onMessage(conn, buf) {
     // msg.timeBase 单位为分钟（0 = 不限时）
     const mins = Math.max(0, Math.min(180, Number(msg.timeBase) || 0));
     const tb = Math.round(mins * 60000);
-    const room = createRoom(tb);
+    // 前端会先自己生成房间号（Cloudflare 版必须在连接前就知道房间号），这里沿用它
+    const wanted = String(msg.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+    const room = createRoom(tb, wanted);
     leaveRoom(conn);
     const token = randToken();
     room.seats.r = { token, name: conn.name, conn };
