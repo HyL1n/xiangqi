@@ -149,6 +149,22 @@ console.log('\n[长将 / 长捉 / 重复局面]');
   expectEq('普通重复局面 → 和棋', g.result && g.result.winner, 'draw');
   expectEq('和棋原因', g.result && g.result.reason, 'repetition');
 }
+{
+  // 红车来回"追"黑炮，但那个炮有根（黑车守着）→ 不算长捉，仍判和
+  const g = new X.Game(boardOf(['rR0,5', 'rK5,8', 'bC4,7', 'bR4,9', 'bK4,0']));
+  for (let i = 0; i < 2; i++) playAll(g, [[0, 5, 0, 7], [4, 7, 4, 5], [0, 7, 0, 5], [4, 5, 4, 7]]);
+  console.log('  ' + g.status + ' ' + JSON.stringify(g.result));
+  expectEq('追有根子不算长捉 → 和棋', g.result && g.result.winner, 'draw');
+  expectEq('和棋原因', g.result && g.result.reason, 'repetition');
+}
+{
+  // 两车对着互相吃（被捉的一方随时能吃回来，算吃子解围）→ 也不算长捉
+  const g = new X.Game(boardOf(['rR0,6', 'rK3,8', 'bR4,5', 'bK4,0']));
+  for (let i = 0; i < 2; i++) playAll(g, [[0, 6, 0, 5], [4, 5, 4, 6], [0, 5, 0, 6], [4, 6, 4, 5]]);
+  console.log('  ' + g.status + ' ' + JSON.stringify(g.result));
+  expectEq('能反吃回来不算长捉 → 和棋', g.result && g.result.winner, 'draw');
+  expectEq('和棋原因', g.result && g.result.reason, 'repetition');
+}
 
 console.log(pass ? '\n全部通过 ✅' : '\n存在失败 ❌');
 process.exit(pass ? 0 : 1);

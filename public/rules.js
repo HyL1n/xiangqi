@@ -257,28 +257,44 @@
 
   /*
    * 该方有没有子能真走到这个格子上（用来判断被捉的子是不是"无根"）。
-   * 注意不能用 isAttacked：它把将帅照面也算成"攻击"，但将帅其实走不出宫、
-   * 根本没法回来吃子，那样会把很多无根子误判成有根。
+   * 两个地方要注意：
+   *   1) 不能用 isAttacked：它把将帅照面也算成"攻击"，但将帅走不出宫、根本回不来吃子，
+   *      那样会把一堆无根子误判成有根；
+   *   2) 判断前先把格子上的自己人挪开（换成对方一个兵），否则躲在被捉子后面的车/炮
+   *      会因为"路被自己人挡住"而算不出保护，长捉就永远判不出来（踩过这个坑）。
    */
   function canRecapture(board, sq, side) {
+    var nb = cloneBoard(board);
+    nb[sq] = side === 'r' ? 'p' : 'P';
     for (var i = 0; i < SIZE; i++) {
-      var ch = board[i];
+      var ch = nb[i];
       if (ch === '.' || sideOf(ch) !== side) continue;
-      var ps = pseudoMoves(board, i);
+      var ps = pseudoMoves(nb, i);
       for (var j = 0; j < ps.length; j++) if (ps[j] === sq) return true;
     }
     return false;
   }
 
   function chaseTargets(board, side) {
-    var ms = legalMoves(board, side), out = [], i;
+    var ms = legalMoves(board, side), out = [], i, j;
+    var foeMoves = null;
     for (i = 0; i < ms.length; i++) {
-      var target = board[ms[i].to];
+      var to = ms[i].to, from = ms[i].from;
+      var target = board[to];
       if (target === '.') continue;
       var tt = typeOf(target);
       if (tt === 'K' || tt === 'P') continue;
-      var defended = canRecapture(board, ms[i].to, sideOf(target));
-      if (!defended || CHASE_VAL[tt] > CHASE_VAL[typeOf(board[ms[i].from])]) out.push(ms[i].to);
+      // 有根（能用别的子吃回来）、而且换子还不划算 → 不算捉
+      var defended = canRecapture(board, to, sideOf(target));
+      if (defended && !(CHASE_VAL[tt] > CHASE_VAL[typeOf(board[from])])) continue;
+      // 被捉的子自己能吃掉这个攻击子（吃子解围）→ 也不算捉
+      if (foeMoves === null) foeMoves = legalMoves(board, sideOf(target));
+      var canEscape = false;
+      for (j = 0; j < foeMoves.length; j++) {
+        if (foeMoves[j].from === to && foeMoves[j].to === from) { canEscape = true; break; }
+      }
+      if (canEscape) continue;
+      out.push(to);
     }
     return out;
   }
