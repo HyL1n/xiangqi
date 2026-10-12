@@ -1,0 +1,18 @@
+# Netlify 配置：只发布前端静态页面（public/），不需要构建命令。
+#
+# ⚠️ Netlify 跑不了 server.js：它的 Functions 是无状态、短连接的，不支持 WebSocket。
+#    所以对战服务器要单独部署（见 README 的“部署”一节），
+#    部署完把地址填进 public/config.js 的 XQ_SERVER，再重新发布这个站点。
+#
+# 用法二选一：
+#   1) 把仓库连到 Netlify，Netlify 会自动读这个文件，发布目录就是 public/
+#   2) 不用 Git：直接把 public 文件夹拖到 https://app.netlify.com/drop
+
+[build]
+  publish = "public"
+  command = "echo no build needed"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"

@@ -1,0 +1,16 @@
+{
+  "name": "xiangqi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "象棋对弈网站：零依赖 Node 服务端（自带 WebSocket 实现）+ Canvas 前端",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/test-rules.js && node tests/test-server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["xiangqi", "chinese-chess", "game", "websocket"],
+  "license": "MIT"
+}

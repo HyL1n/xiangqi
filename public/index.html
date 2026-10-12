@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#12141a">
+<title>象棋 · 和朋友下一盘</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23fdf4e0' stroke='%23b3251f' stroke-width='4'/%3E%3Ctext x='32' y='45' font-size='36' text-anchor='middle' fill='%23b3251f' font-family='serif'%3E%E5%B8%A5%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <div class="brand">
+      <div class="logo">帅</div>
+      <div>
+        <h1>象棋</h1>
+        <p>和朋友下一盘</p>
+      </div>
+    </div>
+    <div class="topbar-actions" id="topbarActions" hidden>
+      <button class="chip" id="codeChip" title="点击复制邀请链接">
+        <span class="chip-label">房间号</span><b id="roomCode">----</b>
+      </button>
+      <button class="btn mini ghost" id="btnInvite">邀请链接</button>
+      <button class="btn mini ghost" id="btnFlip">翻转棋盘</button>
+      <button class="btn mini ghost" id="btnSound" title="声音开关">🔊</button>
+      <button class="btn mini ghost" id="btnExit">退出房间</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="board-area">
+      <div class="board-wrap">
+        <div class="board-box" id="boardBox">
+          <canvas id="board"></canvas>
+          <div class="grid" id="grid"></div>
+        </div>
+      </div>
+
+      <div class="bar">
+        <div id="statusText">等待开始…</div>
+        <div id="statusRight" style="display:flex;align-items:center;gap:8px"></div>
+      </div>
+
+      <div class="linkbox hidden" id="linkBox">
+        <input id="linkInput" readonly>
+        <button class="btn mini" id="btnCopyLink">复制</button>
+        <button class="btn mini ghost" id="btnCloseLink">收起</button>
+      </div>
+
+      <div class="actions hidden" id="localActions"></div>
+    </div>
+
+    <aside class="panel">
+      <div class="players" id="players"></div>
+      <div class="card hidden" id="askCard"></div>
+      <div class="actions" id="actions"></div>
+      <div class="card">
+        <div class="section-title"><span>棋谱记录</span><span id="histCount"></span></div>
+        <div class="hist" id="hist"></div>
+      </div>
+      <div class="card chatcard" id="chatCard">
+        <div class="section-title"><span>聊天</span><span id="chatHint"></span></div>
+        <div class="chatlog" id="chatlog"></div>
+        <form id="chatform">
+          <input id="chatinput" maxlength="200" placeholder="说点什么…" autocomplete="off">
+          <button class="btn" type="submit">发送</button>
+        </form>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div class="overlay" id="lobby">
+  <div class="lobbycard">
+    <h2>象棋</h2>
+    <p class="sub">创建房间，把 4 位房间号（或邀请链接）发给朋友，就能在同一张棋盘上对局。</p>
+
+    <div class="field">
+      <label for="nameInput">你的名字</label>
+      <input id="nameInput" maxlength="12" placeholder="例如：老王" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label>用时（每人总时长）</label>
+      <div class="seg" id="timeSeg">
+        <button type="button" data-min="0" aria-pressed="true">不限时</button>
+        <button type="button" data-min="5">5 分钟</button>
+        <button type="button" data-min="10">10 分钟</button>
+        <button type="button" data-min="15">15 分钟</button>
+        <button type="button" data-min="30">30 分钟</button>
+      </div>
+    </div>
+
+    <button class="btn primary" id="btnCreate" style="width:100%;padding:12px">创建房间，我执红先行</button>
+
+    <div class="or">或加入朋友的房间</div>
+
+    <div class="joinrow">
+      <input id="codeInput" maxlength="6" placeholder="房间号" autocomplete="off">
+      <button class="btn" id="btnJoin">加入</button>
+    </div>
+
+    <div class="or">没有网络也行</div>
+
+    <button class="btn ghost" id="btnLocal" style="width:100%">同一台设备上轮流下（本地对局）</button>
+
+    <p class="sub" id="lobbyHint" style="margin:16px 0 0;font-size:12px"></p>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="rules.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

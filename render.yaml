@@ -1,0 +1,14 @@
+# Render 部署蓝图：一键把这个仓库部署成对局服务器（Render 原生支持 WebSocket）
+# 用法：把仓库推到 GitHub → Render 控制台 New → Blueprint → 选这个仓库
+services:
+  - type: web
+    name: xiangqi
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: echo no build needed
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    # 注意：不要在这里设 PORT。Render 会注入自己的端口，server.js 读 process.env.PORT，
+    # 手动写死端口会导致健康检查和服务路由都对不上。
