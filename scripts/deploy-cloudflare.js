@@ -23,7 +23,7 @@ const PROXY = process.env.HTTPS_PROXY || process.env.https_proxy || 'http://127.
 const DRY = process.argv.includes('--dry-run');
 const SKIP = new Set(['node_modules', '.git', '.wrangler', 'work']);
 
-function say(t) { console.log(t); }
+function say(t) { console.log(t); toLog(t); }
 
 // 完整输出同时写进日志文件，方便把失败原因贴给我（或我直接去读）
 let LOG_PATH = '';
@@ -167,9 +167,11 @@ function npx() { return process.platform === 'win32' ? 'npx.cmd' : 'npx'; }
   } else if (dep.status === 0) {
     say('✅ 部署成功！');
     if (m) say('   网站地址: ' + m[0]);
+    else say('   （没解析出地址，请把上面 wrangler 的输出发我）');
     say('   这个地址就是完整网站（页面 + 对战服务器），发给朋友即可。');
     say('   免费额度：每天 10 万次请求，不会像 Render 那样休眠。');
   } else {
+    say('   wrangler 退出码: ' + dep.status + (dep.signal ? ' 信号: ' + dep.signal : '') + (dep.error ? ' 错误: ' + dep.error.message : ''));
     say('❌ 部署没成功。上面缩进的几行就是 wrangler 的原话，请整段发我。');
     if (LOG_PATH) say('   完整日志已保存到: ' + LOG_PATH);
     say('   常见原因对照：');
@@ -178,4 +180,7 @@ function npx() { return process.platform === 'win32' ? 'npx.cmd' : 'npx'; }
     say('   · Please select an account / more than one account → 在浏览器里选中账号后重试');
     say('   · Invalid configuration / wrangler.toml → 直接发我，我改配置');
   }
+  say('');
+  say('日志文件: ' + (LOG_PATH || '(未写入)'));
+  say('退出码: ' + (DRY ? 0 : (typeof dep === 'object' && dep ? dep.status : 0)));
 })().catch((e) => { console.error('脚本异常: ' + e.message); process.exit(1); });

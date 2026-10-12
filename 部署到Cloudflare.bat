@@ -19,4 +19,7 @@ if errorlevel 1 (
 node "%~dp0scripts\deploy-cloudflare.js" %*
 
 echo.
-pause
+echo   ---- 结果已写入 %%USERPROFILE%%\xiangqi-cloudflare\deploy-cloudflare.log ----
+echo.
+echo   Press Enter to close this window...
+set /p XQ_DUMMY=
