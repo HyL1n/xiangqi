@@ -63,8 +63,7 @@
   var FONTS = {
     kai: 'KaiTi, "Kaiti SC", STKaiti, 楷体, "Songti SC", serif',
     xingkai: '"STXingkai", "华文行楷", "Xingkai SC", "Yuanti SC", KaiTi, 楷体, serif',
-    song: '"Source Han Serif SC", "Noto Serif SC", "Songti SC", STSong, SimSun, 宋体, serif',
-    hei: '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif'
+    song: '"Source Han Serif SC", "Noto Serif SC", "Songti SC", STSong, SimSun, 宋体, serif'
   };
   function pieceFont() { return FONTS[S.font] || FONTS.kai; }
 
@@ -441,7 +440,7 @@
     // 7) 字：先压一层暗影再写白字，做出刻上去的感觉
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.font = '700 ' + (r * 1.16) + 'px ' + pieceFont();
+    c.font = '700 ' + (r * 1.34) + 'px ' + pieceFont();
     c.fillStyle = pal.glyphShadow;
     c.fillText(boardName(ch), cx, faceY + r * 0.08 + Math.max(1, r * 0.045));
     c.fillStyle = pal.glyph;
