@@ -26,6 +26,12 @@
       <button class="btn mini ghost" id="btnInvite">邀请链接</button>
       <button class="btn mini ghost" id="btnFlip">翻转棋盘</button>
       <button class="btn mini ghost" id="btnTheme" title="切换棋盘外观">深色</button>
+      <select class="btn mini ghost" id="fontSel" title="棋子字体">
+        <option value="kai">楷体</option>
+        <option value="xingkai">行楷</option>
+        <option value="song">宋体粗</option>
+        <option value="hei">黑体粗</option>
+      </select>
       <button class="btn mini ghost" id="btnSound" title="声音开关">🔊</button>
       <button class="btn mini ghost" id="btnExit">退出房间</button>
     </div>
@@ -40,20 +46,12 @@
         </div>
       </div>
 
-      <!-- 大号计时器：紧跟棋盘，一眼能看到谁的钟在走 -->
-      <div class="clockbar" id="clockBar" hidden>
-        <div class="cbox" id="clockBoxA">
-          <span class="cname">红方</span>
-          <b class="ctime">--:--</b>
-        </div>
-        <div class="cbox" id="clockBoxB">
-          <span class="cname">黑方</span>
-          <b class="ctime">--:--</b>
-        </div>
-      </div>
-
       <div class="bar">
         <div id="statusText">等待开始…</div>
+        <div class="miniclocks" id="miniClocks" hidden>
+          <span class="mc" id="mcA"><i>红</i><b>--:--</b></span>
+          <span class="mc" id="mcB"><i>黑</i><b>--:--</b></span>
+        </div>
         <div id="statusRight" style="display:flex;align-items:center;gap:8px"></div>
       </div>
 

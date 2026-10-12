@@ -155,53 +155,42 @@ main {
   min-height: 42px;
 }
 
-/* 棋盘下方的大号计时器 */
-.clockbar {
+/* 状态栏里的紧凑计时胶囊（不再用横跨整行的大条） */
+.miniclocks {
+  display: flex;
+  gap: 8px;
   flex: 0 0 auto;
-  display: flex;
-  gap: 10px;
 }
-.clockbar[hidden] { display: none; }
-.cbox {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
+.miniclocks[hidden] { display: none; }
+.mc {
+  display: inline-flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 12px;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 8px;
   border: 1px solid var(--line);
-  background: var(--card);
-  transition: border-color .15s, box-shadow .15s;
+  background: rgba(0, 0, 0, .25);
+  transition: border-color .15s;
 }
-.cbox .cname {
-  font-size: 12px;
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cbox .ctime {
+.mc i { font-style: normal; font-size: 11px; color: var(--muted); }
+.mc b {
   font-family: ui-monospace, Consolas, monospace;
-  font-size: 26px;
+  font-size: 15px;
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  color: var(--text);
 }
-.cbox.active {
-  border-color: var(--gold);
-  box-shadow: 0 0 0 1px rgba(223, 180, 109, .35);
-}
-.cbox.active .ctime { color: var(--gold); }
-.cbox.low .ctime { color: #ff7b6b; }
-.cbox.active.low { border-color: var(--red); box-shadow: 0 0 0 1px rgba(217, 75, 63, .4); }
+.mc.active { border-color: var(--gold); }
+.mc.active b { color: var(--gold); }
+.mc.low b { color: #ff7b6b; }
 
-@media (max-width: 900px) {
-  .cbox { padding: 8px 12px; }
-  .cbox .ctime { font-size: 22px; }
+select.btn {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 10px;
+  cursor: pointer;
 }
+select.btn option { background: #20252f; color: var(--text); }
 
 .bar b { color: var(--text); }
 .bar .warn { color: var(--red); font-weight: 600; }

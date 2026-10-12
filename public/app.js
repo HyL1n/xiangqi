@@ -57,6 +57,16 @@
   };
 
   function theme() { return THEMES[S.theme] || THEMES.dark; }
+
+  // 棋子字体（权重 700 走合成加粗；系统里没有的会自动回退到下一个）
+  var FONTS = {
+    kai: 'KaiTi, "Kaiti SC", STKaiti, 楷体, "Songti SC", serif',
+    xingkai: '"STXingkai", "华文行楷", "Xingkai SC", "Yuanti SC", KaiTi, 楷体, serif',
+    song: '"Source Han Serif SC", "Noto Serif SC", "Songti SC", STSong, SimSun, 宋体, serif',
+    hei: '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif'
+  };
+  function pieceFont() { return FONTS[S.font] || FONTS.kai; }
+
   function boardName(ch) {
     var g = BOARD_GLYPH[X.sideOf(ch)];
     return (g && g[X.typeOf(ch)]) || ch;
@@ -78,6 +88,7 @@
     legalCache: [],
     sound: true,
     theme: 'dark',
+    font: 'xingkai',
     ws: null,
     serverCfg: null,
     probed: false,
@@ -381,7 +392,7 @@
     }
 
     c.fillStyle = pal.glyph;
-    c.font = '700 ' + (r * 1.16) + 'px ' + th.font;
+    c.font = '700 ' + (r * 1.16) + 'px ' + pieceFont();
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     c.fillText(boardName(ch), cx, cy + r * 0.05);
@@ -750,35 +761,30 @@
     }).join('');
   }
 
-  // 棋盘下方的大号计时器（时钟从玩家卡里挪到这里，不再重复显示）
+  // 状态栏里的紧凑计时胶囊
   function renderClocks() {
     var v = S.view;
-    var bar = $('clockBar');
-    if (!bar) return;
+    var box = $('miniClocks');
+    if (!box) return;
     var want = !!(v && v.timeBase);
-    if (bar.hidden === want) {
-      // 计时条显隐会改变棋盘可用高度，需要重新排版
-      bar.hidden = !want;
-      layout();
-    }
+    if (box.hidden === want) { box.hidden = !want; }
     if (!want) return;
     var clocks = liveClocks() || v.clocks || { r: 0, b: 0 };
     var order = S.flipped ? ['b', 'r'] : ['r', 'b'];
-    var slots = ['clockBoxA', 'clockBoxB'];
-    var sideName = { r: '红方', b: '黑方' };
+    var slots = ['mcA', 'mcB'];
+    var shortName = { r: '红', b: '黑' };
     order.forEach(function (side, i) {
-      var box = $(slots[i]);
-      if (!box) return;
-      var who = (v.seats && v.seats[side] && v.seats[side].name) || sideName[side];
+      var el = $(slots[i]);
+      if (!el) return;
       var ms = clocks[side];
-      var cls = 'cbox';
+      var cls = 'mc';
       if (v.status === 'playing' && v.turn === side) cls += ' active';
       if (ms != null && ms < 30000) cls += ' low';
-      if (box.className !== cls) box.className = cls;
-      var nm = box.querySelector('.cname');
-      var t = box.querySelector('.ctime');
-      var label = (who === sideName[side]) ? sideName[side] : who + ' · ' + sideName[side];
-      if (nm.textContent !== label) nm.textContent = label;
+      if (el.className !== cls) el.className = cls;
+      var nameEl = el.querySelector('i');
+      var want2 = shortName[side];
+      if (nameEl.textContent !== want2) nameEl.textContent = want2;
+      var t = el.querySelector('b');
       var text = fmtClock(ms);
       if (t.textContent !== text) t.textContent = text;
     });
@@ -1382,6 +1388,18 @@
     setTheme(S.theme === 'dark' ? 'wood' : 'dark');
   });
 
+  // 棋子字体：即时生效，不用重新部署
+  $('fontSel').addEventListener('change', function () {
+    setFont(this.value);
+  });
+
+  function setFont(name) {
+    S.font = FONTS[name] ? name : 'kai';
+    try { localStorage.setItem('xq.font', S.font); } catch (e) { }
+    $('fontSel').value = S.font;
+    S.dirty = true;                 // 棋子是每帧绘制的，重画一次即可
+  }
+
   function setTheme(name) {
     S.theme = (name === 'wood') ? 'wood' : 'dark';
     try { localStorage.setItem('xq.theme', S.theme); } catch (e) { }
@@ -1447,6 +1465,9 @@
     try { savedTheme = localStorage.getItem('xq.theme') || ''; } catch (e) { }
     S.theme = (savedTheme === 'wood') ? 'wood' : 'dark';      // 默认深色
     $('btnTheme').textContent = S.theme === 'dark' ? '深色' : '木纹';
+    var savedFont = '';
+    try { savedFont = localStorage.getItem('xq.font') || ''; } catch (e) { }
+    setFont(savedFont || 'xingkai');
     buildGrid();
     layout();
     focusCursor(0, false);
